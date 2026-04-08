@@ -166,10 +166,44 @@ function Resolve-RepoPath {
     return [System.IO.Path]::GetFullPath($selected)
 }
 
+function Invoke-GitWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repo,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [int]$RetryCount = 1,
+        [int]$DelaySeconds = 0
+    )
+
+    $attempt = 0
+    $lastResult = $null
+    while ($attempt -lt $RetryCount) {
+        $attempt += 1
+        $lastResult = Invoke-Git -Repo $Repo -Arguments $Arguments -AllowFailure
+        if ($lastResult.ExitCode -eq 0) {
+            return [pscustomobject]@{
+                ExitCode = 0
+                Output = $lastResult.Output
+                Attempts = $attempt
+            }
+        }
+        if ($attempt -lt $RetryCount -and $DelaySeconds -gt 0) {
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+
+    return [pscustomobject]@{
+        ExitCode = if ($null -ne $lastResult) { $lastResult.ExitCode } else { 1 }
+        Output = if ($null -ne $lastResult) { $lastResult.Output } else { "" }
+        Attempts = $attempt
+    }
+}
+
 $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
 $resolvedRepo = Resolve-RepoPath -ConfigRepoPath ([string]$config.repo_path) -OverrideRepoPath $RepoPath
 $hours = if ($LookbackHours -gt 0) { $LookbackHours } else { [int]$config.lookback_hours }
 $outputRoot = Join-Path $SkillRoot ([string]$config.output_dir)
+$fetchRetryCount = [Math]::Max(1, [int]$config.fetch_retry_count)
+$fetchRetryDelaySeconds = [Math]::Max(0, [int]$config.fetch_retry_delay_seconds)
 $topCommitCount = [int]$config.top_commit_count_per_focus
 $topFileCount = [int]$config.top_file_count_per_focus
 
@@ -194,19 +228,15 @@ $isDirty = [bool]$statusResult.Output
 $upstreamResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") -AllowFailure
 $upstream = if ($upstreamResult.ExitCode -eq 0) { $upstreamResult.Output } else { "" }
 
-$fetchResult = Invoke-Git -Repo $resolvedRepo -Arguments @("fetch", "--all", "--prune") -AllowFailure
+$fetchResult = Invoke-GitWithRetry -Repo $resolvedRepo -Arguments @("fetch", "--all", "--prune") -RetryCount $fetchRetryCount -DelaySeconds $fetchRetryDelaySeconds
 $pullStatus = "skipped"
 $fetchStatus = "completed"
 
 if ($fetchResult.ExitCode -ne 0) {
-    $fetchStatus = "failed"
-    $notes.Add("Fetch failed; continuing with local repository state. Details: $($fetchResult.Output)")
+    throw "git fetch failed after $($fetchResult.Attempts) attempt(s). Details: $($fetchResult.Output)"
 }
 
-if ($fetchResult.ExitCode -ne 0) {
-    $notes.Add("Pull skipped because fetch did not complete successfully.")
-}
-elseif ($branch -eq "HEAD") {
+if ($branch -eq "HEAD") {
     $notes.Add("Pull skipped because the repository is in detached HEAD state.")
 }
 elseif (-not $upstream) {
