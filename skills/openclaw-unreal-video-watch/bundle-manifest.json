@@ -1,0 +1,50 @@
+{
+  "skill_name": "openclaw-unreal-video-watch",
+  "package_type": "standalone-windows-skill",
+  "local_files": [
+    "SKILL.md",
+    "bundle-manifest.json",
+    "config/watch_config.json",
+    "secrets/",
+    "scripts/unreal_video_watch.py",
+    "install.ps1",
+    "migrate-cookies.ps1",
+    "run.ps1",
+    "register-task.ps1"
+  ],
+  "packaged_logic_dependencies": [
+    {
+      "name": "python-stdlib",
+      "source": "bundled with portable Python runtime after install",
+      "required_by": "scripts/unreal_video_watch.py"
+    }
+  ],
+  "downloaded_runtime_dependencies": [
+    {
+      "name": "python",
+      "version": "3.13.3",
+      "artifact": "python-3.13.3-embed-amd64.zip",
+      "target_path": "runtime/",
+      "downloaded_by": "install.ps1",
+      "url_template": "https://www.python.org/ftp/python/{version}/python-{version}-embed-amd64.zip"
+    },
+    {
+      "name": "yt-dlp",
+      "version": "2025.03.31",
+      "artifact": "yt-dlp.exe",
+      "target_path": "tools/yt-dlp.exe",
+      "downloaded_by": "install.ps1",
+      "url_template": "https://github.com/yt-dlp/yt-dlp/releases/download/{version}/yt-dlp.exe"
+    }
+  ],
+  "global_dependencies_not_required": [
+    "system Python",
+    "pip",
+    "global yt-dlp"
+  ],
+  "host_requirements": [
+    "Windows PowerShell",
+    "Network access during first-time install",
+    "A logged-in browser profile or a local cookies.txt file when YouTube requires authentication"
+  ]
+}

@@ -1,0 +1,7 @@
+scripts/__pycache__/
+runtime/
+tools/
+.tmp/
+output/
+secrets/cookies.txt
+*.pyc

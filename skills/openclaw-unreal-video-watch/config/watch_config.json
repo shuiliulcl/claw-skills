@@ -1,0 +1,66 @@
+{
+  "queries": [
+    "https://www.youtube.com/@UnrealEngine/videos",
+    "https://www.youtube.com/@UnrealEngine/streams"
+  ],
+  "max_age_hours": 48,
+  "playlist_end": 40,
+  "min_duration_seconds": 180,
+  "top_n": 8,
+  "metadata_enrich_limit": 80,
+  "no_check_certificates": true,
+  "require_publish_date": true,
+  "cookies_file": [
+    "%LOCALAPPDATA%/OpenClawUnrealVideoWatch/cookies.txt",
+    "secrets/cookies.txt"
+  ],
+  "cookies_from_browser": [
+    "chrome",
+    "edge"
+  ],
+  "exclude_keywords": [
+    "shorts",
+    "#shorts",
+    "ad ",
+    "advert",
+    "sponsor",
+    "sponsored",
+    "car",
+    "cars",
+    "automotive",
+    "vehicle",
+    "architecture",
+    "archviz",
+    "building",
+    "interior design",
+    "audio",
+    "sound design",
+    "music",
+    "fortnite",
+    "uefn",
+    "unreal editor for fortnite"
+  ],
+  "include_hints": [
+    "update",
+    "release",
+    "preview",
+    "roadmap",
+    "feature highlight",
+    "inside unreal",
+    "state of unreal",
+    "unreal fest",
+    "5.6",
+    "5.5",
+    "rendering",
+    "animation",
+    "blueprint",
+    "c++",
+    "metahuman",
+    "niagara",
+    "nanite",
+    "lumen"
+  ],
+  "preferred_channels": [
+    "unreal engine"
+  ]
+}
