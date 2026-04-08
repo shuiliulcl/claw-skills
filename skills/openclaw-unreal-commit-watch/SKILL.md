@@ -72,6 +72,6 @@ It contains these sections:
 
 - Fetch failure is treated as a hard failure. The skill does not generate a daily report from stale local data.
 - Fetch uses configurable retry attempts and delay values from `config/watch_config.json`.
-- Pull is skipped when the repository has local uncommitted changes.
+- Pull is skipped when the repository has local uncommitted changes, but the report still analyzes the latest fetched remote branch when an upstream exists.
 - Pull is skipped when the current branch is detached or has no upstream.
 - The skill never resets, rebases, or discards local work.

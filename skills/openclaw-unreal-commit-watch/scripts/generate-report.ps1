@@ -397,8 +397,15 @@ else {
 }
 
 $afterHead = (Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--short", "HEAD")).Output
+$analysisRef = "HEAD"
+if ($upstream) {
+    $analysisRef = $upstream
+    if ($isDirty) {
+        $notes.Add("Commit analysis uses fetched upstream reference $upstream because local changes prevented pull.")
+    }
+}
 $logFormat = "%H%x1f%an%x1f%ad%x1f%s"
-$logResult = Invoke-Git -Repo $resolvedRepo -Arguments @("log", "--since=$sinceSpec", "--date=iso-strict", "--pretty=format:$logFormat")
+$logResult = Invoke-Git -Repo $resolvedRepo -Arguments @("log", $analysisRef, "--since=$sinceSpec", "--date=iso-strict", "--pretty=format:$logFormat")
 $commitLines = @()
 if ($logResult.Output) {
     $commitLines = $logResult.Output -split "`n"
@@ -465,6 +472,7 @@ $report.Add("- " + (Get-Text "generated_at") + ": $($generatedAt.ToString("yyyy-
 $report.Add("- " + (Get-Text "fetch_status") + ": $fetchStatus")
 $report.Add("- " + (Get-Text "pull_status") + ": $pullStatus")
 $report.Add("- " + (Get-Text "head_change") + ": $beforeHead -> $afterHead")
+$report.Add("- Analysis ref: $analysisRef")
 $report.Add("")
 $report.Add("## " + (Get-Text "topline"))
 $report.Add("")
@@ -535,6 +543,7 @@ $payload = @{
     before_head = $beforeHead
     after_head = $afterHead
     pull = $pullStatus
+    analysis_ref = $analysisRef
     lookback_hours = $hours
     commit_count = $commits.Count
     authors = @($authors | ForEach-Object { $_ })
