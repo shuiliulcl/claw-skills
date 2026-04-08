@@ -16,7 +16,7 @@ Use this skill when the goal is to watch a local Unreal Engine source repository
    - Animation
    - Gameplay
    - AI
-5. Writes a Markdown daily report and a JSON raw data file to `output/`.
+5. Writes a Chinese-first Markdown daily report and a JSON raw data file to `output/`.
 
 ## Default setup
 
@@ -42,7 +42,9 @@ powershell -ExecutionPolicy Bypass -File ".\register-task.ps1"
 
 ## Daily report format
 
-The generated report is a Markdown file with these sections:
+The generated report is Chinese-first. Headings, labels, and summary lines are in Chinese, while commit subjects and file paths remain in their original English when that is the most accurate representation.
+
+It contains these sections:
 
 1. `Daily Unreal Commit Watch`
    - repo path
