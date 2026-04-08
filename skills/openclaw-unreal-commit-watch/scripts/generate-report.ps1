@@ -163,6 +163,97 @@ function Get-FocusLabel {
     }
 }
 
+function Get-GlossaryPairs {
+    return @(
+        @("fix", (UText 0x4FEE,0x590D)),
+        @("improve", (UText 0x6539,0x8FDB)),
+        @("update", (UText 0x66F4,0x65B0)),
+        @("add", (UText 0x65B0,0x589E)),
+        @("remove", (UText 0x79FB,0x9664)),
+        @("refactor", (UText 0x91CD,0x6784)),
+        @("optimize", (UText 0x4F18,0x5316)),
+        @("rename", (UText 0x91CD,0x547D,0x540D)),
+        @("revert", (UText 0x56DE,0x9000)),
+        @("cleanup", (UText 0x6E05,0x7406)),
+        @("clean up", (UText 0x6E05,0x7406)),
+        @("support", (UText 0x652F,0x6301)),
+        @("enable", (UText 0x542F,0x7528)),
+        @("disable", (UText 0x7981,0x7528)),
+        @("implement", (UText 0x5B9E,0x73B0)),
+        @("animation", (Get-Text "animation")),
+        @("animgraph", "AnimGraph"),
+        @("control rig", "Control Rig"),
+        @("montage", "Montage"),
+        @("pose", (UText 0x59FF,0x6001)),
+        @("retarget", (UText 0x91CD,0x5B9A,0x5411)),
+        @("gameplay ability system", "Gameplay Ability System"),
+        @("ability", (UText 0x80FD,0x529B)),
+        @("abilities", (UText 0x80FD,0x529B,0x7CFB,0x7EDF)),
+        @("character", (UText 0x89D2,0x8272)),
+        @("combat", (UText 0x6218,0x6597)),
+        @("movement", (UText 0x79FB,0x52A8)),
+        @("input", (UText 0x8F93,0x5165)),
+        @("behavior tree", "Behavior Tree"),
+        @("blackboard", "Blackboard"),
+        @("state tree", "StateTree"),
+        @("statetree", "StateTree"),
+        @("navigation", (UText 0x5BFC,0x822A)),
+        @("navmesh", "NavMesh"),
+        @("perception", (UText 0x611F,0x77E5)),
+        @("ai", "AI"),
+        @("logging", (UText 0x65E5,0x5FD7)),
+        @("crash", (UText 0x5D29,0x6E83)),
+        @("editor", (UText 0x7F16,0x8F91,0x5668)),
+        @("plugin", (UText 0x63D2,0x4EF6)),
+        @("build", (UText 0x6784,0x5EFA)),
+        @("compile", (UText 0x7F16,0x8BD1))
+    )
+}
+
+function Get-CommitSummaryZh {
+    param(
+        [string]$Subject,
+        [string[]]$Tags
+    )
+
+    if (-not $Subject) {
+        return ""
+    }
+
+    $summary = $Subject
+    foreach ($pair in (Get-GlossaryPairs)) {
+        $pattern = [regex]::Escape($pair[0])
+        $replacement = [string]$pair[1]
+        $summary = [regex]::Replace($summary, "(?i)\b$pattern\b", $replacement)
+    }
+
+    $summary = $summary -replace "\s+", " "
+    $summary = $summary.Trim(" ", "-", "_", "(", ")")
+
+    if ($summary -eq $Subject) {
+        if ($Tags.Count -gt 0) {
+            $labels = ($Tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join "/"
+            return "$labels " + (UText 0x76F8,0x5173,0x6539,0x52A8)
+        }
+        return UText 0x63D0,0x4EA4,0x5185,0x5BB9,0x6458,0x8981
+    }
+
+    return $summary
+}
+
+function Format-SubjectWithZh {
+    param(
+        [string]$Subject,
+        [string[]]$Tags
+    )
+
+    $zh = Get-CommitSummaryZh -Subject $Subject -Tags $Tags
+    if (-not $zh) {
+        return $Subject
+    }
+    return "$Subject ($zh)"
+}
+
 function Get-TagsForCommit {
     param(
         [string]$Subject,
@@ -245,7 +336,7 @@ function Format-FocusSection {
     }
     $lines.Add("- " + (Get-Text "highlights") + ":")
     foreach ($commit in ($list | Select-Object -First $TopCommitCount)) {
-        $lines.Add("  - [$($commit.short_sha)] $($commit.subject) | $($commit.author) | $($commit.date)")
+        $lines.Add("  - [$($commit.short_sha)] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags) | $($commit.author) | $($commit.date)")
     }
     $lines.Add("")
     return $lines
@@ -401,7 +492,7 @@ if ($otherCommits.Count -eq 0) {
 }
 else {
     foreach ($commit in $otherCommits) {
-        $report.Add("- [$($commit.short_sha)] $($commit.subject) | $($commit.author) | $($commit.date)")
+        $report.Add("- [$($commit.short_sha)] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags) | $($commit.author) | $($commit.date)")
     }
 }
 $report.Add("")
@@ -413,7 +504,7 @@ if ($commits.Count -eq 0) {
 else {
     foreach ($commit in $commits) {
         $tagText = if ($commit.tags.Count -gt 0) { (($commit.tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join ", ") } else { (Get-Text "other") }
-        $report.Add("- [$($commit.short_sha)] [$tagText] $($commit.subject)")
+        $report.Add("- [$($commit.short_sha)] [$tagText] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
         $report.Add("  - " + (Get-Text "author") + ": $($commit.author)")
         $report.Add("  - " + (Get-Text "time") + ": $($commit.date)")
         if ($commit.files.Count -gt 0) {

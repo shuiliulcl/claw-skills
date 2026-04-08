@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File ".\register-task.ps1"
 
 ## Daily report format
 
-The generated report is Chinese-first. Headings, labels, and summary lines are in Chinese, while commit subjects and file paths remain in their original English when that is the most accurate representation.
+The generated report is Chinese-first. Headings, labels, and summary lines are in Chinese. Commit subjects are rendered as `English subject (Chinese summary)` whenever a local summary can be inferred reliably, while file paths remain in their original English.
 
 It contains these sections:
 
