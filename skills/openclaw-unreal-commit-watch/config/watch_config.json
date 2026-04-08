@@ -1,0 +1,9 @@
+{
+  "repo_path": "F:/UnrealEngine",
+  "lookback_hours": 24,
+  "output_dir": "output",
+  "top_commit_count_per_focus": 5,
+  "top_file_count_per_focus": 8,
+  "task_name": "OpenClaw Unreal Commit Watch",
+  "run_at": "09:00"
+}
