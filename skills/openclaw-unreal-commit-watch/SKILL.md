@@ -57,9 +57,10 @@ It contains these sections:
 3. `重点模块`
    - one section each for Animation, Gameplay, and AI
    - Chinese-first "what changed" bullets
-   - commit subject plus Chinese summary
+   - only higher-importance commits are shown in the main body
+   - commit subject plus Chinese summary, impact, and follow-up guidance
 4. `其他提交`
-   - commits outside the three focus areas
+   - low-priority or non-focus commits are summarized instead of exhaustively listed
 5. `提交明细`
    - compact per-commit list with Chinese labels and English subjects
 6. `备注`
