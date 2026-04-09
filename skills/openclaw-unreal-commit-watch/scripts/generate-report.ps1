@@ -454,14 +454,8 @@ $jsonPath = Join-Path $outputRoot "unreal_commit_watch_$timestamp.json"
 $report = New-Object System.Collections.Generic.List[string]
 $report.Add("# " + (Get-Text "report_title"))
 $report.Add("")
-$report.Add("- " + (Get-Text "repo") + ": $repoRoot")
-$report.Add("- " + (Get-Text "branch") + ": $branch")
-$report.Add("- " + (Get-Text "window") + ": " + (Get-Text "last_hours_prefix") + " $hours " + (Get-Text "last_hours_suffix"))
 $report.Add("- " + (Get-Text "generated_at") + ": $($generatedAt.ToString("yyyy-MM-dd HH:mm:ss"))")
 $report.Add("- " + (Get-Text "fetch_status") + ": $fetchStatus")
-$report.Add("- " + (Get-Text "pull_status") + ": $pullStatus")
-$report.Add("- " + (Get-Text "head_change") + ": $beforeHead -> $afterHead")
-$report.Add("- Analysis ref: $analysisRef")
 $report.Add("")
 $report.Add("## " + (Get-Text "topline"))
 $report.Add("")
@@ -521,6 +515,12 @@ else {
         $report.Add("- $note")
     }
 }
+$report.Add("- " + (Get-Text "repo") + ": $repoRoot")
+$report.Add("- " + (Get-Text "branch") + ": $branch")
+$report.Add("- " + (Get-Text "window") + ": " + (Get-Text "last_hours_prefix") + " $hours " + (Get-Text "last_hours_suffix"))
+$report.Add("- " + (Get-Text "pull_status") + ": $pullStatus")
+$report.Add("- " + (Get-Text "head_change") + ": $beforeHead -> $afterHead")
+$report.Add("- Analysis ref: $analysisRef")
 $report.Add("")
 
 [System.IO.File]::WriteAllText($reportPath, ($report -join "`r`n"), [System.Text.Encoding]::UTF8)
