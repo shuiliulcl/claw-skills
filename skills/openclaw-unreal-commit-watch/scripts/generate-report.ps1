@@ -53,10 +53,7 @@ function Get-Text {
         "no_notes" { return UText 0x65E0,0x989D,0x5916,0x5907,0x6CE8,0x3002 }
         "last_hours_prefix" { return UText 0x6700,0x8FD1 }
         "last_hours_suffix" { return UText 0x5C0F,0x65F6 }
-        "today_take" { return UText 0x4ECA,0x65E5,0x7ED3,0x8BBA }
         "no_high_priority_focus" { return UText 0x672C,0x6A21,0x5757,0x6682,0x672A,0x53D1,0x73B0,0x9AD8,0x91CD,0x8981,0x5EA6,0x63D0,0x4EA4,0x3002 }
-        "impact" { return UText 0x5F71,0x54CD }
-        "followup" { return UText 0x5EFA,0x8BAE }
         "importance" { return UText 0x91CD,0x8981,0x5EA6 }
         "reference" { return UText 0x7D22,0x5F15 }
         "link" { return UText 0x94FE,0x63A5 }
@@ -64,7 +61,6 @@ function Get-Text {
         "low_priority_omitted" { return UText 0x4F4E,0x91CD,0x8981,0x5EA6,0x63D0,0x4EA4 }
         "omitted_suffix" { return UText 0x6761,0xFF0C,0x5DF2,0x4ECE,0x4E3B,0x4F53,0x7701,0x7565,0x3002 }
         "other_low_priority_omitted_prefix" { return UText 0x5176,0x4F59,0x4F4E,0x91CD,0x8981,0x5EA6,0x5176,0x4ED6,0x63D0,0x4EA4 }
-        "today_take_prefix" { return UText 0x4ECA,0x5929,0x503C,0x5F97,0x4F18,0x5148,0x5173,0x6CE8,0x7684,0x65B9,0x5411,0x5305,0x62EC }
         default { return $Key }
     }
 }
@@ -378,6 +374,32 @@ function Get-CompactSubject {
     return $primary
 }
 
+function Get-CompactSummary {
+    param(
+        [string]$Subject,
+        [string[]]$Tags,
+        [int]$MaxLength = 72
+    )
+
+    $summary = Get-CommitSummaryZh -Subject $Subject -Tags $Tags
+    if (-not $summary) {
+        return ""
+    }
+
+    $summary = [regex]::Replace($summary, '\s+#jira\s+\S+', '')
+    $summary = [regex]::Replace($summary, '\s+#rb\s+\S+', '')
+    $summary = [regex]::Replace($summary, '\s+#Synced-CL\s+\d+', '')
+    $summary = [regex]::Replace($summary, '\s+#\S+', '')
+    $summary = $summary -replace '\s+', ' '
+    $summary = $summary.Trim()
+
+    if ($summary.Length -gt $MaxLength) {
+        return $summary.Substring(0, $MaxLength - 3).TrimEnd() + "..."
+    }
+
+    return $summary
+}
+
 function Get-TagsForCommit {
     param(
         [string]$Subject,
@@ -575,78 +597,12 @@ function Get-ImportanceScore {
     return [Math]::Max(0, $score)
 }
 
-function Get-ImpactText {
-    param(
-        [string]$Subject,
-        [string[]]$Tags
-    )
-
-    $lower = ([string]$Subject).ToLowerInvariant()
-    if ($lower -match "input|touch") {
-        return UText 0x53EF,0x80FD,0x5F71,0x54CD,0x8F93,0x5165,0x4E8B,0x4EF6,0x94FE,0x8DEF,0x3001,0x89E6,0x6478,0x4EA4,0x4E92,0x6216,0x8BBE,0x5907,0x4FA7,0x884C,0x4E3A,0x3002
-    }
-    if ($lower -match "memory|performance|optimize") {
-        return UText 0x53EF,0x80FD,0x5F71,0x54CD,0x6027,0x80FD,0x3001,0x8D44,0x6E90,0x5360,0x7528,0x6216,0x8FD0,0x884C,0x65F6,0x6548,0x7387,0x3002
-    }
-    if ($lower -match "control rig|anim graph|animation|sequencer|skeletal") {
-        return UText 0x53EF,0x80FD,0x5F71,0x54CD,0x52A8,0x753B,0x7F16,0x8F91,0x3001,0x52A8,0x753B,0x8FD0,0x884C,0x65F6,0x903B,0x8F91,0x6216,0x76F8,0x5173,0x5DE5,0x5177,0x5DE5,0x4F5C,0x6D41,0x3002
-    }
-    if ($lower -match "ability|character|movement|combat|gamefeature") {
-        return (UText 0x53EF,0x80FD,0x5F71,0x54CD) + " Gameplay " + (UText 0x903B,0x8F91,0x3001,0x89D2,0x8272,0x884C,0x4E3A,0x6216,0x529F,0x80FD,0x5F00,0x5173,0x3002)
-    }
-    if ($lower -match "\bai\b|statetree|behavior tree|navigation|pcg|perception") {
-        return (UText 0x53EF,0x80FD,0x5F71,0x54CD) + " AI/PCG " + (UText 0x51B3,0x7B56,0x94FE,0x8DEF,0x3001,0x5BFC,0x822A,0x7CFB,0x7EDF,0x6216,0x76F8,0x5173,0x57FA,0x7840,0x8BBE,0x65BD,0x3002)
-    }
-    if ($Tags.Count -gt 0) {
-        $labels = ($Tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join "/"
-        return (UText 0x53EF,0x80FD,0x5F71,0x54CD) + " $labels " + (UText 0x76F8,0x5173,0x6A21,0x5757,0x3002)
-    }
-    return UText 0x5EFA,0x8BAE,0x7ED3,0x5408,0x5177,0x4F53,0x4EE3,0x7801,0x518D,0x5224,0x65AD,0x5F71,0x54CD,0x8303,0x56F4,0x3002
-}
-
-function Get-FollowupText {
-    param([int]$Score)
-
-    if ($Score -ge 7) {
-        return UText 0x5EFA,0x8BAE,0x4F18,0x5148,0x9605,0x8BFB,0xFF0C,0x53EF,0x80FD,0x5C5E,0x4E8E,0x4ECA,0x5929,0x6700,0x503C,0x5F97,0x5173,0x6CE8,0x7684,0x6539,0x52A8,0x3002
-    }
-    if ($Score -ge 4) {
-        return UText 0x5EFA,0x8BAE,0x6309,0x9700,0x70B9,0x5F00,0x67E5,0x770B,0xFF0C,0x5C5E,0x4E8E,0x4E2D,0x9AD8,0x4F18,0x5148,0x7EA7,0x66F4,0x65B0,0x3002
-    }
-    return UText 0x6682,0x65F6,0x53EF,0x4F4E,0x4F18,0x5148,0x7EA7,0x5904,0x7406,0x3002
-}
-
 function Get-ImportanceBucket {
     param([int]$Score)
 
     if ($Score -ge 7) { return "high" }
     if ($Score -ge 4) { return "medium" }
     return "low"
-}
-
-function Get-TodayTakeLine {
-    param(
-        [string]$Name,
-        [System.Collections.IEnumerable]$Commits
-    )
-
-    $list = @($Commits | Where-Object { $_.importance_score -ge $script:ImportanceThreshold })
-    if ($list.Count -eq 0) {
-        return $null
-    }
-
-    $top = $list | Sort-Object -Property @("importance_score", "date") -Descending | Select-Object -First 2
-    $focus = ($top | ForEach-Object {
-        $summary = Get-CommitSummaryZh -Subject $_.subject -Tags $_.tags
-        if ($summary -and $summary -ne (UText 0x63D0,0x4EA4,0x5185,0x5BB9,0x6458,0x8981)) {
-            $summary
-        }
-        else {
-            Get-CompactSubject -Subject $_.subject
-        }
-    }) -join "; "
-    $label = Get-FocusLabel -Name $Name
-    return $label + ": " + (Get-Text "today_take_prefix") + " " + $focus
 }
 
 function Get-ReferenceText {
@@ -751,11 +707,8 @@ function Format-FocusSection {
     else {
         foreach ($commit in $highPriority) {
             $lines.Add("  - $(Get-CompactSubject -Subject $commit.subject)")
-            $lines.Add("    - " + (Get-Text "summary") + ": $(Get-CommitSummaryZh -Subject $commit.subject -Tags $commit.tags)")
+            $lines.Add("    - " + (Get-Text "summary") + ": $(Get-CompactSummary -Subject $commit.subject -Tags $commit.tags)")
             $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $RepoWebBaseUrl -Sha $commit.sha))")
-            $lines.Add("    - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
-            $lines.Add("    - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
-            $lines.Add("    - " + (Get-Text "followup") + ": $(Get-FollowupText -Score $commit.importance_score)")
             if ($commit.files.Count -gt 0) {
                 $previewFiles = Get-DisplayFileNames -Files ($commit.files | Select-Object -First 3)
                 $lines.Add("    - " + (Get-Text "files") + ": $($previewFiles -join '; ')")
@@ -911,16 +864,6 @@ $report.Add("- " + (Get-Text "animation_commits") + ": $($focusBuckets.Animation
 $report.Add("- " + (Get-Text "gameplay_commits") + ": $($focusBuckets.Gameplay.Count)")
 $report.Add("- " + (Get-Text "ai_commits") + ": $($focusBuckets.AI.Count)")
 $report.Add("")
-$report.Add("## " + (Get-Text "today_take"))
-$report.Add("")
-foreach ($line in @(
-    (Get-TodayTakeLine -Name "Animation" -Commits $focusBuckets.Animation),
-    (Get-TodayTakeLine -Name "Gameplay" -Commits $focusBuckets.Gameplay),
-    (Get-TodayTakeLine -Name "AI" -Commits $focusBuckets.AI)
-) | Where-Object { $_ }) {
-    $report.Add("- $line")
-}
-$report.Add("")
 $report.Add("## " + (Get-Text "focus"))
 $report.Add("")
 foreach ($line in (Format-FocusSection -Name "Animation" -Commits $focusBuckets.Animation -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
@@ -942,10 +885,8 @@ else {
     $otherLowCount = @($otherCommits | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
     foreach ($commit in $otherHigh) {
         $report.Add("- $(Get-CompactSubject -Subject $commit.subject)")
-        $report.Add("  - " + (Get-Text "summary") + ": $(Get-CommitSummaryZh -Subject $commit.subject -Tags $commit.tags)")
+        $report.Add("  - " + (Get-Text "summary") + ": $(Get-CompactSummary -Subject $commit.subject -Tags $commit.tags)")
         $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $repoWebBaseUrl -Sha $commit.sha))")
-        $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
-        $report.Add("  - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
     }
     if ($otherLowCount -gt 0) {
         $report.Add("- " + (Get-Text "other_low_priority_omitted_prefix") + ": $otherLowCount " + (Get-Text "omitted_suffix"))
