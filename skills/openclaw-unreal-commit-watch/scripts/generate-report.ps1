@@ -464,6 +464,7 @@ function Get-ImportanceScore {
     )
 
     $subjectText = [string]$Subject
+    $lower = $subjectText.ToLowerInvariant()
     $score = 0
     foreach ($pattern in @(
         "(?i)\binitial release\b",
@@ -506,8 +507,12 @@ function Get-ImportanceScore {
         "(?i)\bback out\b"
     )) {
         if ($subjectText -match $pattern) {
-            $score -= 2
+            $score -= 4
         }
+    }
+
+    if ($lower -match "missing file|namespace|cleanup|clean up|warning|backout|back out|trivial|rename") {
+        $score -= 2
     }
     foreach ($tag in $Tags) {
         switch ($tag) {
@@ -521,6 +526,13 @@ function Get-ImportanceScore {
         if ($normalized -match "/plugins/animation/|/controlrig/|/sequencer/|/aimodule/|/statetree/|/pcg/|/gameplayabilities/|/enhancedinput/") {
             $score += 1
         }
+        if ($normalized -match "/build/|/source/programs/" -or $normalized -match "\.(csproj|sln|targets|props)$") {
+            $score -= 1
+        }
+    }
+
+    if ($Files.Count -le 2 -and $lower -match "missing file|namespace|cleanup|clean up|warning|trivial|rename") {
+        $score -= 2
     }
     return [Math]::Max(0, $score)
 }
