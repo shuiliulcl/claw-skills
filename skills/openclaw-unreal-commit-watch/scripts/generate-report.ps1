@@ -58,6 +58,7 @@ function Get-Text {
         "impact" { return UText 0x5F71,0x54CD }
         "followup" { return UText 0x5EFA,0x8BAE }
         "importance" { return UText 0x91CD,0x8981,0x5EA6 }
+        "reference" { return UText 0x7D22,0x5F15 }
         "low_priority_omitted" { return UText 0x4F4E,0x91CD,0x8981,0x5EA6,0x63D0,0x4EA4 }
         "omitted_suffix" { return UText 0x6761,0xFF0C,0x5DF2,0x4ECE,0x4E3B,0x4F53,0x7701,0x7565,0x3002 }
         "other_low_priority_omitted_prefix" { return UText 0x5176,0x4F59,0x4F4E,0x91CD,0x8981,0x5EA6,0x5176,0x4ED6,0x63D0,0x4EA4 }
@@ -603,6 +604,37 @@ function Get-TodayTakeLine {
     return $label + ": " + (Get-Text "today_take_prefix") + " " + $focus
 }
 
+function Get-ReferenceText {
+    param(
+        [string]$Subject,
+        [string]$ShortSha
+    )
+
+    $parts = New-Object System.Collections.Generic.List[string]
+    if ($ShortSha) {
+        $parts.Add("SHA $ShortSha")
+    }
+
+    $subjectText = [string]$Subject
+    $clMatches = [regex]::Matches($subjectText, 'CL\d+')
+    foreach ($match in $clMatches) {
+        $value = $match.Value.ToUpperInvariant()
+        if (-not $parts.Contains($value)) {
+            $parts.Add($value)
+        }
+    }
+
+    $jiraMatches = [regex]::Matches($subjectText, 'UE-\d+')
+    foreach ($match in $jiraMatches) {
+        $value = $match.Value.ToUpperInvariant()
+        if (-not $parts.Contains($value)) {
+            $parts.Add($value)
+        }
+    }
+
+    return ($parts -join " | ")
+}
+
 function Format-FocusSection {
     param(
         [string]$Name,
@@ -634,7 +666,7 @@ function Format-FocusSection {
     else {
         foreach ($commit in $highPriority) {
             $lines.Add("  - $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-            $lines.Add("    - SHA: $($commit.short_sha)")
+            $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha)")
             $lines.Add("    - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
             $lines.Add("    - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
             $lines.Add("    - " + (Get-Text "followup") + ": $(Get-FollowupText -Score $commit.importance_score)")
@@ -817,7 +849,7 @@ else {
     $otherLowCount = @($otherCommits | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
     foreach ($commit in $otherHigh) {
         $report.Add("- $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - SHA: $($commit.short_sha)")
+        $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha)")
         $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
         $report.Add("  - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
     }
