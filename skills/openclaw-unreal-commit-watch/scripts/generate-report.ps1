@@ -190,7 +190,17 @@ function Get-FocusDefinitions {
                 "/player",
                 "/pawn",
                 "/gamemode",
-                "/gamestate"
+                "/gamestate",
+                "/aimodule/",
+                "/behaviortree/",
+                "/blackboard/",
+                "/statetree/",
+                "/navigation",
+                "/navmesh",
+                "/smartobject",
+                "/massai",
+                "/perception",
+                "/eqs"
             )
             SubjectPatterns = @(
                 "(?i)\bgameplay\b",
@@ -202,25 +212,7 @@ function Get-FocusDefinitions {
                 "(?i)\binput\b",
                 "(?i)\bmovement\b",
                 "(?i)\bplayer\b",
-                "(?i)\bpawn\b"
-            )
-        }
-        AI = @{
-            PathPatterns = @(
-                "/aimodule/",
-                "/behaviortree/",
-                "/blackboard/",
-                "/statetree/",
-                "/navigation",
-                "/navmesh",
-                "/smartobject",
-                "/massai",
-                "/perception",
-                "/eqs",
-                "/pcg/"
-            )
-            SubjectPatterns = @(
-                "(?i)\bai\b",
+                "(?i)\bpawn\b",
                 "(?i)\bbehavior tree\b",
                 "(?i)\bbehaviortree\b",
                 "(?i)\bblackboard\b",
@@ -231,8 +223,31 @@ function Get-FocusDefinitions {
                 "(?i)\bsmart object\b",
                 "(?i)\bmassai\b",
                 "(?i)\bperception\b",
-                "(?i)\beqs\b",
-                "(?i)\bpcg\b"
+                "(?i)\beqs\b"
+            )
+        }
+        AI = @{
+            PathPatterns = @(
+                "/mcp/",
+                "/claude/",
+                "/copilot/",
+                "/openai/",
+                "/genai/",
+                "/llm/",
+                "/prompt/"
+            )
+            SubjectPatterns = @(
+                "(?i)\bmcp\b",
+                "(?i)\bmodel context protocol\b",
+                "(?i)\bclaude\b",
+                "(?i)\bcopilot\b",
+                "(?i)\bllm\b",
+                "(?i)\bgenai\b",
+                "(?i)\bgenerative ai\b",
+                "(?i)\bai plugin(s)?\b",
+                "(?i)\bai assistant\b",
+                "(?i)\bprompt\b",
+                "(?i)\bagentic\b"
             )
         }
     }
@@ -286,6 +301,13 @@ function Get-GlossaryPairs {
         @("navmesh", "NavMesh"),
         @("perception", (UText 0x611F,0x77E5)),
         @("ai", "AI"),
+        @("mcp", "MCP"),
+        @("model context protocol", "Model Context Protocol"),
+        @("claude", "Claude"),
+        @("copilot", "Copilot"),
+        @("prompt", "Prompt"),
+        @("assistant", (UText 0x52A9,0x624B)),
+        @("toolset", (UText 0x5DE5,0x5177,0x96C6)),
         @("logging", (UText 0x65E5,0x5FD7)),
         @("crash", (UText 0x5D29,0x6E83)),
         @("editor", (UText 0x7F16,0x8F91,0x5668)),
