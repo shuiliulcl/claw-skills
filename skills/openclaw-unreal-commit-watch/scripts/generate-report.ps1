@@ -59,6 +59,7 @@ function Get-Text {
         "followup" { return UText 0x5EFA,0x8BAE }
         "importance" { return UText 0x91CD,0x8981,0x5EA6 }
         "reference" { return UText 0x7D22,0x5F15 }
+        "link" { return UText 0x94FE,0x63A5 }
         "low_priority_omitted" { return UText 0x4F4E,0x91CD,0x8981,0x5EA6,0x63D0,0x4EA4 }
         "omitted_suffix" { return UText 0x6761,0xFF0C,0x5DF2,0x4ECE,0x4E3B,0x4F53,0x7701,0x7565,0x3002 }
         "other_low_priority_omitted_prefix" { return UText 0x5176,0x4F59,0x4F4E,0x91CD,0x8981,0x5EA6,0x5176,0x4ED6,0x63D0,0x4EA4 }
@@ -607,11 +608,16 @@ function Get-TodayTakeLine {
 function Get-ReferenceText {
     param(
         [string]$Subject,
-        [string]$ShortSha
+        [string]$ShortSha,
+        [string]$Sha,
+        [string]$CommitUrl
     )
 
     $parts = New-Object System.Collections.Generic.List[string]
-    if ($ShortSha) {
+    if ($CommitUrl -and $ShortSha) {
+        $parts.Add("[SHA $ShortSha]($CommitUrl)")
+    }
+    elseif ($ShortSha) {
         $parts.Add("SHA $ShortSha")
     }
 
@@ -635,12 +641,47 @@ function Get-ReferenceText {
     return ($parts -join " | ")
 }
 
+function Get-CommitWebBaseUrl {
+    param([string]$RemoteUrl)
+
+    if (-not $RemoteUrl) {
+        return ""
+    }
+
+    $normalized = $RemoteUrl.Trim()
+    if ($normalized -match '^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$') {
+        return "https://github.com/$($matches[1])/$($matches[2])"
+    }
+    if ($normalized -match '^git@github\.com:([^/]+)/(.+?)(?:\.git)?$') {
+        return "https://github.com/$($matches[1])/$($matches[2])"
+    }
+    if ($normalized -match '^ssh://git@github\.com/([^/]+)/(.+?)(?:\.git)?/?$') {
+        return "https://github.com/$($matches[1])/$($matches[2])"
+    }
+
+    return ""
+}
+
+function Get-CommitUrl {
+    param(
+        [string]$RepoWebBaseUrl,
+        [string]$Sha
+    )
+
+    if (-not $RepoWebBaseUrl -or -not $Sha) {
+        return ""
+    }
+
+    return "$RepoWebBaseUrl/commit/$Sha"
+}
+
 function Format-FocusSection {
     param(
         [string]$Name,
         [System.Collections.IEnumerable]$Commits,
         [int]$TopCommitCount,
-        [int]$TopFileCount
+        [int]$TopFileCount,
+        [string]$RepoWebBaseUrl = ""
     )
 
     $list = @($Commits)
@@ -666,7 +707,7 @@ function Format-FocusSection {
     else {
         foreach ($commit in $highPriority) {
             $lines.Add("  - $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-            $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha)")
+            $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $RepoWebBaseUrl -Sha $commit.sha))")
             $lines.Add("    - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
             $lines.Add("    - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
             $lines.Add("    - " + (Get-Text "followup") + ": $(Get-FollowupText -Score $commit.importance_score)")
@@ -713,6 +754,13 @@ $statusResult = Invoke-Git -Repo $resolvedRepo -Arguments @("status", "--porcela
 $isDirty = [bool]$statusResult.Output
 $upstreamResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") -AllowFailure
 $upstream = if ($upstreamResult.ExitCode -eq 0) { $upstreamResult.Output } else { "" }
+$upstreamRemoteName = if ($upstream -and $upstream.Contains("/")) { $upstream.Split("/")[0] } else { "origin" }
+$remoteUrlResult = Invoke-Git -Repo $resolvedRepo -Arguments @("remote", "get-url", $upstreamRemoteName) -AllowFailure
+if ($remoteUrlResult.ExitCode -ne 0 -and $upstreamRemoteName -ne "origin") {
+    $remoteUrlResult = Invoke-Git -Repo $resolvedRepo -Arguments @("remote", "get-url", "origin") -AllowFailure
+}
+$repoRemoteUrl = if ($remoteUrlResult.ExitCode -eq 0) { $remoteUrlResult.Output } else { "" }
+$repoWebBaseUrl = Get-CommitWebBaseUrl -RemoteUrl $repoRemoteUrl
 
 $fetchResult = Invoke-GitWithRetry -Repo $resolvedRepo -Arguments @("fetch", "--all", "--prune") -RetryCount $fetchRetryCount -DelaySeconds $fetchRetryDelaySeconds
 $pullStatus = "skipped"
@@ -830,13 +878,13 @@ foreach ($line in @(
 $report.Add("")
 $report.Add("## " + (Get-Text "focus"))
 $report.Add("")
-foreach ($line in (Format-FocusSection -Name "Animation" -Commits $focusBuckets.Animation -TopCommitCount $topCommitCount -TopFileCount $topFileCount)) {
+foreach ($line in (Format-FocusSection -Name "Animation" -Commits $focusBuckets.Animation -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
     $report.Add([string]$line)
 }
-foreach ($line in (Format-FocusSection -Name "Gameplay" -Commits $focusBuckets.Gameplay -TopCommitCount $topCommitCount -TopFileCount $topFileCount)) {
+foreach ($line in (Format-FocusSection -Name "Gameplay" -Commits $focusBuckets.Gameplay -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
     $report.Add([string]$line)
 }
-foreach ($line in (Format-FocusSection -Name "AI" -Commits $focusBuckets.AI -TopCommitCount $topCommitCount -TopFileCount $topFileCount)) {
+foreach ($line in (Format-FocusSection -Name "AI" -Commits $focusBuckets.AI -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
     $report.Add([string]$line)
 }
 $report.Add("## " + (Get-Text "other"))
@@ -849,7 +897,7 @@ else {
     $otherLowCount = @($otherCommits | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
     foreach ($commit in $otherHigh) {
         $report.Add("- $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha)")
+        $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $repoWebBaseUrl -Sha $commit.sha))")
         $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
         $report.Add("  - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
     }
@@ -899,6 +947,8 @@ $report.Add("")
 $payload = @{
     generated_at = $generatedAt.ToString("o")
     repo_root = $repoRoot
+    repo_remote_url = $repoRemoteUrl
+    repo_web_url = $repoWebBaseUrl
     branch = $branch
     before_head = $beforeHead
     after_head = $afterHead
