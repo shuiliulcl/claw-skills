@@ -47,6 +47,8 @@ def main() -> int:
     now = datetime.now()
     cutoff = now - timedelta(hours=int(config["max_age_hours"]))
 
+    yt_dlp_timeout_seconds = int(config.get("yt_dlp_timeout_seconds", 45))
+    print(f"[watch] starting candidate collection (timeout={yt_dlp_timeout_seconds}s)", flush=True)
     candidates = collect_candidates(
         yt_dlp_path=yt_dlp_path,
         queries=list(config["queries"]),
@@ -54,7 +56,9 @@ def main() -> int:
         metadata_enrich_limit=int(config.get("metadata_enrich_limit", 24)),
         no_check_certificates=bool(config.get("no_check_certificates", False)),
         playlist_end=int(config.get("playlist_end", 40)),
+        yt_dlp_timeout_seconds=yt_dlp_timeout_seconds,
     )
+    print(f"[watch] candidate collection done: {len(candidates)} candidates", flush=True)
     decisions = build_decisions(
         candidates=candidates,
         cutoff=cutoff,
@@ -109,15 +113,18 @@ def collect_candidates(
     metadata_enrich_limit: int,
     no_check_certificates: bool,
     playlist_end: int,
+    yt_dlp_timeout_seconds: int,
 ) -> list[dict[str, Any]]:
     by_id: dict[str, dict[str, Any]] = {}
-    for query in queries:
+    for index, query in enumerate(queries, start=1):
+        print(f"[watch] search {index}/{len(queries)}: {query}", flush=True)
         result = run_yt_dlp_search(
             yt_dlp_path=yt_dlp_path,
             query=query,
             auth_options=auth_options,
             no_check_certificates=no_check_certificates,
             playlist_end=playlist_end,
+            yt_dlp_timeout_seconds=yt_dlp_timeout_seconds,
         )
         entries = result.get("entries") or []
         for entry in entries:
@@ -129,12 +136,14 @@ def collect_candidates(
                 entry["_query"] = query
                 by_id[video_id] = entry
     candidates = list(by_id.values())
+    print(f"[watch] starting metadata enrich (limit={metadata_enrich_limit})", flush=True)
     enrich_candidate_metadata(
         yt_dlp_path=yt_dlp_path,
         candidates=candidates,
         auth_options=auth_options,
         limit=metadata_enrich_limit,
         no_check_certificates=no_check_certificates,
+        yt_dlp_timeout_seconds=yt_dlp_timeout_seconds,
     )
     return candidates
 
@@ -145,6 +154,7 @@ def run_yt_dlp_search(
     auth_options: list[list[str]],
     no_check_certificates: bool,
     playlist_end: int,
+    yt_dlp_timeout_seconds: int,
 ) -> dict[str, Any]:
     attempt_errors: list[str] = []
     attempts = auth_options if auth_options else [[]]
@@ -161,13 +171,18 @@ def run_yt_dlp_search(
             *auth_args,
             query,
         ]
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=yt_dlp_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            attempt_errors.append(f"{describe_auth_args(auth_args)}: timed out after {yt_dlp_timeout_seconds}s")
+            continue
         if result.returncode == 0:
             return json.loads(result.stdout)
         error_text = result.stderr.strip() or result.stdout.strip() or f"yt-dlp exited with code {result.returncode}"
@@ -181,21 +196,26 @@ def enrich_candidate_metadata(
     auth_options: list[list[str]],
     limit: int,
     no_check_certificates: bool,
+    yt_dlp_timeout_seconds: int,
 ) -> None:
     if limit <= 0:
         return
 
     remaining = limit
+    enrich_index = 0
     for entry in candidates:
         if remaining <= 0:
             break
         if not should_enrich_entry(entry):
             continue
+        enrich_index += 1
+        print(f"[watch] enrich {enrich_index}/{limit}: {entry.get('title') or entry.get('id') or 'unknown'}", flush=True)
         enriched = fetch_video_metadata(
             yt_dlp_path=yt_dlp_path,
             url=pick_url(entry),
             auth_options=auth_options,
             no_check_certificates=no_check_certificates,
+            yt_dlp_timeout_seconds=yt_dlp_timeout_seconds,
         )
         if enriched:
             merge_entry_metadata(entry, enriched)
@@ -212,6 +232,7 @@ def fetch_video_metadata(
     url: str,
     auth_options: list[list[str]],
     no_check_certificates: bool,
+    yt_dlp_timeout_seconds: int,
 ) -> dict[str, Any] | None:
     if not url:
         return None
@@ -228,13 +249,18 @@ def fetch_video_metadata(
             *auth_args,
             url,
         ]
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=yt_dlp_timeout_seconds,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"[watch] metadata timeout after {yt_dlp_timeout_seconds}s: {url}", flush=True)
+            continue
         if result.returncode == 0:
             try:
                 return json.loads(result.stdout)
