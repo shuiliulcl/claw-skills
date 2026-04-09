@@ -296,6 +296,36 @@ function Add-FileHotspots {
     }
 }
 
+function Get-DisplayFileNames {
+    param([string[]]$Files)
+
+    $names = @()
+    foreach ($file in $Files) {
+        if (-not $file) { continue }
+        $name = [System.IO.Path]::GetFileName($file)
+        if ($name) {
+            $names += $name
+        }
+    }
+    return @($names | Select-Object -Unique)
+}
+
+function Format-CommitDate {
+    param([string]$DateText)
+
+    if (-not $DateText) {
+        return ""
+    }
+
+    try {
+        $dto = [DateTimeOffset]::Parse($DateText)
+        return $dto.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+    }
+    catch {
+        return $DateText
+    }
+}
+
 function Format-FocusSection {
     param(
         [string]$Name,
@@ -321,9 +351,9 @@ function Format-FocusSection {
     foreach ($commit in ($list | Select-Object -First $TopCommitCount)) {
         $lines.Add("  - $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
         $lines.Add("    - SHA: $($commit.short_sha)")
-        $lines.Add("    - " + (Get-Text "time") + ": $($commit.date)")
+        $lines.Add("    - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
         if ($commit.files.Count -gt 0) {
-            $previewFiles = $commit.files | Select-Object -First 3
+            $previewFiles = Get-DisplayFileNames -Files ($commit.files | Select-Object -First 3)
             $lines.Add("    - " + (Get-Text "files") + ": $($previewFiles -join '; ')")
         }
     }
@@ -484,7 +514,7 @@ else {
     foreach ($commit in $otherCommits) {
         $report.Add("- $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
         $report.Add("  - SHA: $($commit.short_sha)")
-        $report.Add("  - " + (Get-Text "time") + ": $($commit.date)")
+        $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
     }
 }
 $report.Add("")
@@ -497,9 +527,9 @@ else {
     foreach ($commit in $commits) {
         $tagText = if ($commit.tags.Count -gt 0) { (($commit.tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join ", ") } else { (Get-Text "other") }
         $report.Add("- [$($commit.short_sha)] [$tagText] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - " + (Get-Text "time") + ": $($commit.date)")
+        $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
         if ($commit.files.Count -gt 0) {
-            $previewFiles = $commit.files | Select-Object -First 6
+            $previewFiles = Get-DisplayFileNames -Files ($commit.files | Select-Object -First 6)
             $report.Add("  - " + (Get-Text "files") + ": $($previewFiles -join '; ')")
         }
     }
