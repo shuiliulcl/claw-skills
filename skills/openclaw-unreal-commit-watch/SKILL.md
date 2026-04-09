@@ -46,24 +46,23 @@ The generated report is Chinese-first. Headings, labels, and summary lines are i
 
 It contains these sections:
 
-1. `Daily Unreal Commit Watch`
+1. `虚幻引擎提交日报`
    - repo path
    - branch
    - time window
-   - fetch / pull result
-2. `Topline`
+   - fetch / pull / analysis ref
+2. `今日概览`
    - total commits in window
-   - total authors
    - Animation / Gameplay / AI commit counts
-3. `Focus Highlights`
+3. `重点模块`
    - one section each for Animation, Gameplay, and AI
-   - top commits
-   - hotspot files
-4. `Other Commits`
+   - Chinese-first "what changed" bullets
+   - commit subject plus Chinese summary
+4. `其他提交`
    - commits outside the three focus areas
-5. `Commit Ledger`
-   - compact per-commit list with author, time, subject, and tags
-6. `Notes`
+5. `提交明细`
+   - compact per-commit list with Chinese labels and English subjects
+6. `备注`
    - skipped pull reason
    - dirty working tree warning
    - missing upstream warning

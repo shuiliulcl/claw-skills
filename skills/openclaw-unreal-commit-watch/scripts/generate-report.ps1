@@ -316,27 +316,16 @@ function Format-FocusSection {
         return $lines
     }
 
-    $authors = @($list | Select-Object -ExpandProperty author | Sort-Object -Unique)
-    $fileCounts = @{}
-    foreach ($commit in $list) {
-        Add-FileHotspots -Table $fileCounts -Files $commit.files
-    }
-    $topFiles = $fileCounts.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First $TopFileCount
-
     $lines.Add("- " + (Get-Text "related_commits") + ": $($list.Count)")
-    $lines.Add("- " + (Get-Text "related_authors") + ": $($authors.Count)")
-    $lines.Add("- " + (Get-Text "top_files") + ":")
-    if ($topFiles.Count -eq 0) {
-        $lines.Add("  - " + (Get-Text "none"))
-    }
-    else {
-        foreach ($item in $topFiles) {
-            $lines.Add("  - $($item.Name) ($($item.Value))")
-        }
-    }
     $lines.Add("- " + (Get-Text "highlights") + ":")
     foreach ($commit in ($list | Select-Object -First $TopCommitCount)) {
-        $lines.Add("  - [$($commit.short_sha)] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags) | $($commit.author) | $($commit.date)")
+        $lines.Add("  - $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
+        $lines.Add("    - SHA: $($commit.short_sha)")
+        $lines.Add("    - " + (Get-Text "time") + ": $($commit.date)")
+        if ($commit.files.Count -gt 0) {
+            $previewFiles = $commit.files | Select-Object -First 3
+            $lines.Add("    - " + (Get-Text "files") + ": $($previewFiles -join '; ')")
+        }
     }
     $lines.Add("")
     return $lines
@@ -477,7 +466,6 @@ $report.Add("")
 $report.Add("## " + (Get-Text "topline"))
 $report.Add("")
 $report.Add("- " + (Get-Text "total_commits") + ": $($commits.Count)")
-$report.Add("- " + (Get-Text "total_authors") + ": $($authors.Count)")
 $report.Add("- " + (Get-Text "animation_commits") + ": $($focusBuckets.Animation.Count)")
 $report.Add("- " + (Get-Text "gameplay_commits") + ": $($focusBuckets.Gameplay.Count)")
 $report.Add("- " + (Get-Text "ai_commits") + ": $($focusBuckets.AI.Count)")
@@ -500,7 +488,9 @@ if ($otherCommits.Count -eq 0) {
 }
 else {
     foreach ($commit in $otherCommits) {
-        $report.Add("- [$($commit.short_sha)] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags) | $($commit.author) | $($commit.date)")
+        $report.Add("- $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
+        $report.Add("  - SHA: $($commit.short_sha)")
+        $report.Add("  - " + (Get-Text "time") + ": $($commit.date)")
     }
 }
 $report.Add("")
@@ -513,7 +503,6 @@ else {
     foreach ($commit in $commits) {
         $tagText = if ($commit.tags.Count -gt 0) { (($commit.tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join ", ") } else { (Get-Text "other") }
         $report.Add("- [$($commit.short_sha)] [$tagText] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - " + (Get-Text "author") + ": $($commit.author)")
         $report.Add("  - " + (Get-Text "time") + ": $($commit.date)")
         if ($commit.files.Count -gt 0) {
             $previewFiles = $commit.files | Select-Object -First 6
