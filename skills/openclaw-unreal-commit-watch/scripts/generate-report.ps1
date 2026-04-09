@@ -893,24 +893,6 @@ else {
     }
 }
 $report.Add("")
-$report.Add("## " + (Get-Text "ledger"))
-$report.Add("")
-if ($commits.Count -eq 0) {
-    $report.Add("- " + (Get-Text "commit_none"))
-}
-else {
-    foreach ($commit in ($commits | Where-Object { $_.importance_score -ge $script:ImportanceThreshold } | Sort-Object -Property @("importance_score", "date") -Descending)) {
-        $tagText = if ($commit.tags.Count -gt 0) { (($commit.tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join ", ") } else { (Get-Text "other") }
-        $report.Add("- [$($commit.short_sha)] [$tagText] $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
-        $report.Add("  - " + (Get-Text "importance") + ": $(Get-ImportanceBucket -Score $commit.importance_score)")
-        if ($commit.files.Count -gt 0) {
-            $previewFiles = Get-DisplayFileNames -Files ($commit.files | Select-Object -First 6)
-            $report.Add("  - " + (Get-Text "files") + ": $($previewFiles -join '; ')")
-        }
-    }
-}
-$report.Add("")
 $report.Add("## " + (Get-Text "notes"))
 $report.Add("")
 if ($notes.Count -eq 0) {
