@@ -60,6 +60,7 @@ function Get-Text {
         "importance" { return UText 0x91CD,0x8981,0x5EA6 }
         "reference" { return UText 0x7D22,0x5F15 }
         "link" { return UText 0x94FE,0x63A5 }
+        "summary" { return UText 0x6458,0x8981 }
         "low_priority_omitted" { return UText 0x4F4E,0x91CD,0x8981,0x5EA6,0x63D0,0x4EA4 }
         "omitted_suffix" { return UText 0x6761,0xFF0C,0x5DF2,0x4ECE,0x4E3B,0x4F53,0x7701,0x7565,0x3002 }
         "other_low_priority_omitted_prefix" { return UText 0x5176,0x4F59,0x4F4E,0x91CD,0x8981,0x5EA6,0x5176,0x4ED6,0x63D0,0x4EA4 }
@@ -342,6 +343,41 @@ function Format-SubjectWithZh {
     return "$Subject ($zh)"
 }
 
+function Get-CleanSubject {
+    param([string]$Subject)
+
+    if (-not $Subject) {
+        return ""
+    }
+
+    $clean = [string]$Subject
+    $clean = [regex]::Replace($clean, '\s+#jira\s+\S+', '')
+    $clean = [regex]::Replace($clean, '\s+#rb\s+\S+', '')
+    $clean = [regex]::Replace($clean, '\s+#Synced-CL\s+\d+', '')
+    $clean = [regex]::Replace($clean, '\s+#\S+', '')
+    $clean = $clean -replace '\s+', ' '
+    return $clean.Trim()
+}
+
+function Get-CompactSubject {
+    param([string]$Subject)
+
+    $clean = Get-CleanSubject -Subject $Subject
+    if (-not $clean) {
+        return ""
+    }
+
+    $primary = $clean
+    if ($primary.Contains(" - ")) {
+        $primary = ($primary -split '\s-\s', 2)[0].Trim()
+    }
+    if ($primary.Length -gt 90) {
+        $primary = $primary.Substring(0, 87).TrimEnd() + "..."
+    }
+
+    return $primary
+}
+
 function Get-TagsForCommit {
     param(
         [string]$Subject,
@@ -600,7 +636,15 @@ function Get-TodayTakeLine {
     }
 
     $top = $list | Sort-Object -Property @("importance_score", "date") -Descending | Select-Object -First 2
-    $focus = ($top | ForEach-Object { $_.subject }) -join "; "
+    $focus = ($top | ForEach-Object {
+        $summary = Get-CommitSummaryZh -Subject $_.subject -Tags $_.tags
+        if ($summary -and $summary -ne (UText 0x63D0,0x4EA4,0x5185,0x5BB9,0x6458,0x8981)) {
+            $summary
+        }
+        else {
+            Get-CompactSubject -Subject $_.subject
+        }
+    }) -join "; "
     $label = Get-FocusLabel -Name $Name
     return $label + ": " + (Get-Text "today_take_prefix") + " " + $focus
 }
@@ -622,9 +666,9 @@ function Get-ReferenceText {
     }
 
     $subjectText = [string]$Subject
-    $clMatches = [regex]::Matches($subjectText, 'CL\d+')
+    $clMatches = [regex]::Matches($subjectText, '(?i)(?:synced-)?cl[\s-]?(\d+)')
     foreach ($match in $clMatches) {
-        $value = $match.Value.ToUpperInvariant()
+        $value = "CL" + $match.Groups[1].Value
         if (-not $parts.Contains($value)) {
             $parts.Add($value)
         }
@@ -706,7 +750,8 @@ function Format-FocusSection {
     }
     else {
         foreach ($commit in $highPriority) {
-            $lines.Add("  - $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
+            $lines.Add("  - $(Get-CompactSubject -Subject $commit.subject)")
+            $lines.Add("    - " + (Get-Text "summary") + ": $(Get-CommitSummaryZh -Subject $commit.subject -Tags $commit.tags)")
             $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $RepoWebBaseUrl -Sha $commit.sha))")
             $lines.Add("    - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
             $lines.Add("    - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
@@ -896,7 +941,8 @@ else {
     $otherHigh = @($otherCommits | Where-Object { $_.importance_score -ge $script:ImportanceThreshold } | Sort-Object -Property @("importance_score", "date") -Descending)
     $otherLowCount = @($otherCommits | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
     foreach ($commit in $otherHigh) {
-        $report.Add("- $(Format-SubjectWithZh -Subject $commit.subject -Tags $commit.tags)")
+        $report.Add("- $(Get-CompactSubject -Subject $commit.subject)")
+        $report.Add("  - " + (Get-Text "summary") + ": $(Get-CommitSummaryZh -Subject $commit.subject -Tags $commit.tags)")
         $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $repoWebBaseUrl -Sha $commit.sha))")
         $report.Add("  - " + (Get-Text "time") + ": $(Format-CommitDate -DateText $commit.date)")
         $report.Add("  - " + (Get-Text "impact") + ": $(Get-ImpactText -Subject $commit.subject -Tags $commit.tags)")
@@ -940,6 +986,9 @@ $report.Add("- " + (Get-Text "window") + ": " + (Get-Text "last_hours_prefix") +
 $report.Add("- " + (Get-Text "pull_status") + ": $pullStatus")
 $report.Add("- " + (Get-Text "head_change") + ": $beforeHead -> $afterHead")
 $report.Add("- Analysis ref: $analysisRef")
+if ($repoWebBaseUrl) {
+    $report.Add("- " + (Get-Text "link") + ": $repoWebBaseUrl")
+}
 $report.Add("")
 
 [System.IO.File]::WriteAllText($reportPath, ($report -join "`r`n"), [System.Text.Encoding]::UTF8)
