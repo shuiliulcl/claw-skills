@@ -147,9 +147,86 @@ function Resolve-RepoPath {
 
 function Get-FocusDefinitions {
     return [ordered]@{
-        Animation = @("animation", "anim", "animgraph", "controlrig", "rig", "skeletal", "retarget", "ik", "pose", "motionmatching", "montage")
-        Gameplay = @("gameplay", "ability", "abilities", "character", "combat", "weapon", "player", "pawn", "gamemode", "gamestate", "input", "movement")
-        AI = @("ai", "behavior", "behaviortree", "blackboard", "statetree", "eqs", "perception", "navigation", "navmesh", "smartobject", "crowd", "massai")
+        Animation = @{
+            PathPatterns = @(
+                "/plugins/animation/",
+                "/controlrig/",
+                "/animgraph",
+                "/animationblueprint",
+                "/skeletalmeshmodelingtools/",
+                "/posesearch/",
+                "/sequencer/",
+                "/moviesceneanimmixer/"
+            )
+            SubjectPatterns = @(
+                "(?i)\banimation\b",
+                "(?i)\banimgraph\b",
+                "(?i)\bcontrol rig\b",
+                "(?i)\bskeletal\b",
+                "(?i)\bretarget\b",
+                "(?i)\bmontage\b",
+                "(?i)\bpose\b",
+                "(?i)\bmotion matching\b",
+                "(?i)\bsequencer\b"
+            )
+        }
+        Gameplay = @{
+            PathPatterns = @(
+                "/gameplayabilities/",
+                "/gameplaytasks/",
+                "/gamefeatures/",
+                "/enhancedinput/",
+                "/input/",
+                "/character",
+                "/gameframework/",
+                "/player",
+                "/pawn",
+                "/gamemode",
+                "/gamestate"
+            )
+            SubjectPatterns = @(
+                "(?i)\bgameplay\b",
+                "(?i)\bability\b",
+                "(?i)\babilities\b",
+                "(?i)\bcharacter\b",
+                "(?i)\bcombat\b",
+                "(?i)\bweapon\b",
+                "(?i)\binput\b",
+                "(?i)\bmovement\b",
+                "(?i)\bplayer\b",
+                "(?i)\bpawn\b"
+            )
+        }
+        AI = @{
+            PathPatterns = @(
+                "/aimodule/",
+                "/behaviortree/",
+                "/blackboard/",
+                "/statetree/",
+                "/navigation",
+                "/navmesh",
+                "/smartobject",
+                "/massai",
+                "/perception",
+                "/eqs",
+                "/pcg/"
+            )
+            SubjectPatterns = @(
+                "(?i)\bai\b",
+                "(?i)\bbehavior tree\b",
+                "(?i)\bbehaviortree\b",
+                "(?i)\bblackboard\b",
+                "(?i)\bstate tree\b",
+                "(?i)\bstatetree\b",
+                "(?i)\bnavigation\b",
+                "(?i)\bnavmesh\b",
+                "(?i)\bsmart object\b",
+                "(?i)\bmassai\b",
+                "(?i)\bperception\b",
+                "(?i)\beqs\b",
+                "(?i)\bpcg\b"
+            )
+        }
     }
 }
 
@@ -260,17 +337,61 @@ function Get-TagsForCommit {
         [string[]]$Files
     )
 
-    $text = (($Subject + "`n" + ($Files -join "`n")).ToLowerInvariant())
+    $filteredFiles = @(Get-ClassificationFiles -Files $Files)
+    $normalizedFiles = @($filteredFiles | ForEach-Object { $_.Replace('\', '/').ToLowerInvariant() })
+    $subjectText = [string]$Subject
     $tags = New-Object System.Collections.Generic.List[string]
     foreach ($entry in (Get-FocusDefinitions).GetEnumerator()) {
-        foreach ($keyword in $entry.Value) {
-            if ($text -like "*$keyword*") {
-                $tags.Add($entry.Key)
+        $matched = $false
+        foreach ($pathPattern in $entry.Value.PathPatterns) {
+            if ($normalizedFiles | Where-Object { $_ -like "*$pathPattern*" }) {
+                $matched = $true
                 break
             }
         }
+        if (-not $matched) {
+            foreach ($subjectPattern in $entry.Value.SubjectPatterns) {
+                if ($subjectText -match $subjectPattern) {
+                    $matched = $true
+                    break
+                }
+            }
+        }
+        if ($matched) {
+            $tags.Add($entry.Key)
+        }
     }
     return $tags | Select-Object -Unique
+}
+
+function Get-ClassificationFiles {
+    param([string[]]$Files)
+
+    $result = @()
+    foreach ($file in $Files) {
+        if (-not $file) { continue }
+        if (Is-NoiseFileForClassification -FilePath $file) {
+            continue
+        }
+        $result += $file
+    }
+    return $result
+}
+
+function Is-NoiseFileForClassification {
+    param([string]$FilePath)
+
+    $name = [System.IO.Path]::GetFileName($FilePath).ToLowerInvariant()
+    if ($name -in @("commit.gitdeps.xml", "build.version", "metadata.csv")) {
+        return $true
+    }
+    if ($name.EndsWith(".csproj") -or $name.EndsWith(".sln") -or $name.EndsWith(".vcxproj") -or $name.EndsWith(".props") -or $name.EndsWith(".targets")) {
+        return $true
+    }
+    if ($name -like "*.uplugin" -or $name -like "*.uproject") {
+        return $true
+    }
+    return $false
 }
 
 function Get-ShortSha {
