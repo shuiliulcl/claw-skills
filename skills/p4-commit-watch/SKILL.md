@@ -118,14 +118,18 @@ DIFF_FILE: C:\Users\...\tmpXXXX.txt
 
 ### 第三步：分析
 
-根据提交的文件类型选择分析深度：
+**优先判断提交类型，按优先级处理：**
 
-**普通改动（非 Lua，如 C++/BP/配置）：**
-```
-[AI分析] 本次提交是...（意图）。主要改动：...。风险点：...（如有，否则省略）。
-```
+#### ❌ 低价值提交（直接跳过 AI 分析，不输出任何分析文字）
+以下类型提交信息量极低，**不得**展开分析，直接省略该 CL 的 AI 分析段落：
+- `collection` 类：描述含 `Added X objects to collection` / `Removed ... from collection`
+- `DataLayerSave` 类：描述含 `[DataLayerSave]` 或 `导出文件配置`
+- `Undo changelist` 类：描述以 `Undo changelist` 开头
+- 纯 `.collection` 文件变更（FILES 全为 Other，无 BP/Lua/C++）
 
-**Lua 改动（FILES 中 Lua > 0）：专项 Code Review**
+#### ✅ 有实质改动（需要分析）
+
+**含 Lua 文件（FILES 中 Lua > 0）→ 专项 Code Review（必做，不得省略）**
 ```
 [Code Review]
 - 意图：本次改动是...（1句）
@@ -135,11 +139,23 @@ DIFF_FILE: C:\Users\...\tmpXXXX.txt
 - 建议：如有改进建议则写，否则写「无」
 ```
 
+**纯 BP/C++ 改动（无 Lua）→ 1句摘要**
+```
+[AI分析] 本次提交是...（意图，1句，有实质信息才写）。
+```
+
+**注意**：
+- `.uasset`/`.umap` 等二进制文件在 diff 中显示为 `(binary)`，**无法分析内容**，不要尝试推断，直接忽略该文件
+- 如果一个 CL 只有二进制文件变更（无 Lua/C++ 文本 diff），则该 CL 不输出 AI 分析
+
 ### 第四步：组装报告
 
 将分析结果追加在对应 CL 条目下方，保持原有报告结构，一起输出。
+低价值提交（collection/DataLayer/Undo）的 CL 条目**依然保留**（CL 号、文件数等基础信息），只是不加 AI 分析段落。
 
-> ⚠️ **常见错误**：忘记调用 `read` 读取 diff 文件。报告里看到 `DIFF_FILE:` 行就必须读，没有例外。
+> ⚠️ **常见错误**：
+> 1. 忘记调用 `read` 读取 diff 文件——报告里看到 `DIFF_FILE:` 行就必须读，没有例外
+> 2. 对 collection/DataLayer 类提交写了废话式摘要——这类提交直接跳过分析
 
 ## Cron 配置（配置后自动运行）
 
