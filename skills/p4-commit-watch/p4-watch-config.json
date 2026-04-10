@@ -4,6 +4,11 @@
       "name": "Stb_2.5",
       "stream": "//root/game/Stb_2.5/...",
       "label": "Stb_2.5"
+    },
+    {
+      "name": "Dev_2.8",
+      "stream": "//root/game/Dev_2.8/...",
+      "label": "Dev_2.8"
     }
   ],
   "self_watch": {
@@ -12,9 +17,9 @@
     "enabled": true
   },
   "team_watch": {
-    "members": [],
+    "members": ["lianlian", "yuechu", "zengtiantong", "tianqi", "lilichen", "bourne", "summer", "yukunlong", "jingyuan002"],
     "hours_back": 24,
-    "enabled": false
+    "enabled": true
   },
   "notify": {
     "feishu_open_id": "ou_2b6334604d63123d4dc232d596e9d46d"

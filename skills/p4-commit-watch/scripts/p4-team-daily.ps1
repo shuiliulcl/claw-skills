@@ -1,11 +1,14 @@
 ﻿# p4-team-daily.ps1
 # 分析多个仓库里组员的每日提交，生成汇总报告
-# 用法: powershell -File p4-team-daily.ps1 -ConfigFile <path> [-HoursBack 24]
+# 用法: pwsh -File p4-team-daily.ps1 -ConfigFile <path> [-HoursBack 24]
 
 param(
     [string]$ConfigFile = "$PSScriptRoot\..\p4-watch-config.json",
     [int]$HoursBack = 0
 )
+
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 # ---------- 加载配置 ----------
 if (-not (Test-Path $ConfigFile)) {
@@ -17,6 +20,22 @@ $config  = Get-Content $ConfigFile -Encoding UTF8 | ConvertFrom-Json
 $members = $config.team_watch.members
 $repos   = $config.repos
 $hoursBack = if ($HoursBack -gt 0) { $HoursBack } else { $config.team_watch.hours_back }
+
+# ---------- 中文名映射 ----------
+$nameMap = @{
+    "lianlian"     = "莲莲"
+    "yuechu"       = "月初"
+    "zengtiantong" = "天同"
+    "tianqi"       = "天麒"
+    "lilichen"     = "粒粒尘"
+    "bourne"       = "芒果"
+    "summer"       = "Summer"
+    "yukunlong"    = "阿龙"
+    "jingyuan002"  = "景元"
+}
+function Get-DisplayName($user) {
+    if ($nameMap.ContainsKey($user)) { return $nameMap[$user] } else { return $user }
+}
 
 if (-not $config.team_watch.enabled) {
     Write-Host "[INFO] team_watch disabled in config."
@@ -122,8 +141,9 @@ $lines += ""
 
 foreach ($member in $members) {
     $commits = @($teamReport[$member])
+    $displayName = Get-DisplayName $member
     $lines += "========================"
-    $lines += "[$member]  $($commits.Count) commit(s)"
+    $lines += "[$displayName]  $($commits.Count) commit(s)"
 
     if ($commits.Count -eq 0) {
         $lines += "  (no commits today)"
