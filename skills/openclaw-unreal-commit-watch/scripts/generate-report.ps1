@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)][string]$SkillRoot,
     [Parameter(Mandatory = $true)][string]$ConfigPath,
     [string]$RepoPath = "",
@@ -190,17 +190,7 @@ function Get-FocusDefinitions {
                 "/player",
                 "/pawn",
                 "/gamemode",
-                "/gamestate",
-                "/aimodule/",
-                "/behaviortree/",
-                "/blackboard/",
-                "/statetree/",
-                "/navigation",
-                "/navmesh",
-                "/smartobject",
-                "/massai",
-                "/perception",
-                "/eqs"
+                "/gamestate"
             )
             SubjectPatterns = @(
                 "(?i)\bgameplay\b",
@@ -212,7 +202,25 @@ function Get-FocusDefinitions {
                 "(?i)\binput\b",
                 "(?i)\bmovement\b",
                 "(?i)\bplayer\b",
-                "(?i)\bpawn\b",
+                "(?i)\bpawn\b"
+            )
+        }
+        AI = @{
+            PathPatterns = @(
+                "/aimodule/",
+                "/behaviortree/",
+                "/blackboard/",
+                "/statetree/",
+                "/navigation",
+                "/navmesh",
+                "/smartobject",
+                "/massai",
+                "/perception",
+                "/eqs",
+                "/pcg/"
+            )
+            SubjectPatterns = @(
+                "(?i)\bai\b",
                 "(?i)\bbehavior tree\b",
                 "(?i)\bbehaviortree\b",
                 "(?i)\bblackboard\b",
@@ -223,31 +231,8 @@ function Get-FocusDefinitions {
                 "(?i)\bsmart object\b",
                 "(?i)\bmassai\b",
                 "(?i)\bperception\b",
-                "(?i)\beqs\b"
-            )
-        }
-        AI = @{
-            PathPatterns = @(
-                "/mcp/",
-                "/claude/",
-                "/copilot/",
-                "/openai/",
-                "/genai/",
-                "/llm/",
-                "/prompt/"
-            )
-            SubjectPatterns = @(
-                "(?i)\bmcp\b",
-                "(?i)\bmodel context protocol\b",
-                "(?i)\bclaude\b",
-                "(?i)\bcopilot\b",
-                "(?i)\bllm\b",
-                "(?i)\bgenai\b",
-                "(?i)\bgenerative ai\b",
-                "(?i)\bai plugin(s)?\b",
-                "(?i)\bai assistant\b",
-                "(?i)\bprompt\b",
-                "(?i)\bagentic\b"
+                "(?i)\beqs\b",
+                "(?i)\bpcg\b"
             )
         }
     }
@@ -301,13 +286,6 @@ function Get-GlossaryPairs {
         @("navmesh", "NavMesh"),
         @("perception", (UText 0x611F,0x77E5)),
         @("ai", "AI"),
-        @("mcp", "MCP"),
-        @("model context protocol", "Model Context Protocol"),
-        @("claude", "Claude"),
-        @("copilot", "Copilot"),
-        @("prompt", "Prompt"),
-        @("assistant", (UText 0x52A9,0x624B)),
-        @("toolset", (UText 0x5DE5,0x5177,0x96C6)),
         @("logging", (UText 0x65E5,0x5FD7)),
         @("crash", (UText 0x5D29,0x6E83)),
         @("editor", (UText 0x7F16,0x8F91,0x5668)),
@@ -327,6 +305,11 @@ function Get-CommitSummaryZh {
         return ""
     }
 
+    # 低价值 commit 直接标注 [杂项]
+    if ($Subject -match '(?i)\b(cleanup|clean up|rename|warning|trivial|backout|back out|missing file|namespace)\b') {
+        return "[" + (UText 0x6742,0x9879) + "] $Subject"
+    }
+
     $summary = $Subject
     foreach ($pair in (Get-GlossaryPairs)) {
         $pattern = [regex]::Escape($pair[0])
@@ -337,12 +320,9 @@ function Get-CommitSummaryZh {
     $summary = $summary -replace "\s+", " "
     $summary = $summary.Trim(" ", "-", "_", "(", ")")
 
+    # 词对未命中时直接返回英文原文，不输出空洞占位标签
     if ($summary -eq $Subject) {
-        if ($Tags.Count -gt 0) {
-            $labels = ($Tags | ForEach-Object { Get-FocusLabel -Name $_ }) -join "/"
-            return "$labels " + (UText 0x76F8,0x5173,0x6539,0x52A8)
-        }
-        return UText 0x63D0,0x4EA4,0x5185,0x5BB9,0x6458,0x8981
+        return $Subject
     }
 
     return $summary
@@ -389,8 +369,8 @@ function Get-CompactSubject {
     if ($primary.Contains(" - ")) {
         $primary = ($primary -split '\s-\s', 2)[0].Trim()
     }
-    if ($primary.Length -gt 90) {
-        $primary = $primary.Substring(0, 87).TrimEnd() + "..."
+    if ($primary.Length -gt 120) {
+        $primary = $primary.Substring(0, 117).TrimEnd() + "..."
     }
 
     return $primary
@@ -697,6 +677,45 @@ function Get-CommitUrl {
     return "$RepoWebBaseUrl/commit/$Sha"
 }
 
+function Get-CommitImpactNote {
+    param(
+        [string]$Subject,
+        [string[]]$Tags,
+        [int]$Score
+    )
+    $s = $Subject
+    $note = ""
+    $sep = UText 0xFF0C
+
+    if ($s -match '(?i)\brefactor\w*\b') {
+        $note = (UText 0x67B6,0x6784,0x6027,0x91CD,0x6784) + $sep + (UText 0x5EFA,0x8BAE,0x68C0,0x67E5,0x4F9D,0x8D56,0x6A21,0x5757,0x662F,0x5426,0x9700,0x8981,0x9002,0x914D)
+    }
+    elseif ($s -match '(?i)\bremov\w*\b') {
+        $note = (UText 0x79FB,0x9664,0x529F,0x80FD) + $sep + (UText 0x82E5,0x4F60,0x7684,0x4EE3,0x7801,0x5F15,0x7528,0x4E86,0x8BE5,0x63A5,0x53E3,0x9700,0x6CE8,0x610F,0x5347,0x7EA7)
+    }
+    elseif ($s -match '(?i)\breplace\w*\b') {
+        $note = (UText 0x66FF,0x6362,0x5B9E,0x73B0) + $sep + (UText 0x65E7,0x63A5,0x53E3,0x53EF,0x80FD,0x5DF2,0x5931,0x6548,0xFF0C,0x8BF7,0x786E,0x8BA4,0x8C03,0x7528,0x5730,0x70B9)
+    }
+    elseif ($s -match '(?i)\bcrash\b') {
+        $note = (UText 0x5D29,0x6E83,0x4FEE,0x590D) + $sep + (UText 0x5982,0x679C,0x60A8,0x9047,0x5230,0x76F8,0x5173,0x573A,0x666F,0x53EF,0x5347,0x7EA7)
+    }
+    elseif ($s -match '(?i)null-?pointer|null\s+ptr|nullptr') {
+        $note = (UText 0x7A7A,0x6307,0x9488,0x5D29,0x6E83,0x4FEE,0x590D) + $sep + (UText 0x5EFA,0x8BAE,0x8DDF,0x8E2A)
+    }
+    elseif ($s -match '(?i)\badd\b.*\bapi\b|\bnew\s+(api|functionality|feature)\b|\bexpose\b') {
+        $note = (UText 0x65B0,0x589E) + " API / " + (UText 0x529F,0x80FD) + $sep + (UText 0x5EFA,0x8BAE,0x8BC4,0x4F30,0x662F,0x5426,0x53EF,0x7528,0x4E8E,0x9879,0x76EE)
+    }
+    elseif ($s -match '(?i)\bperform\w*\b|\bmemory\s+consumption\b|\boptimiz\w*\b') {
+        $note = (UText 0x6027,0x80FD) + "/" + (UText 0x5185,0x5B58,0x4F18,0x5316) + $sep + (UText 0x5EFA,0x8BAE,0x5173,0x6CE8,0x5927,0x89C4,0x6A21,0x573A,0x666F,0x4E0B,0x7684,0x8868,0x73B0)
+    }
+    elseif ($s -match '(?i)Global\s*Parameter') {
+        $note = "Global Parameter " + (UText 0x529F,0x80FD,0x5C1A,0x672A,0x5C31,0x7EEA) + $sep + (UText 0x5C06,0x6765,0x53EF,0x80FD,0x91CD,0x65B0,0x5F15,0x5165) + $sep + (UText 0x5EFA,0x8BAE,0x6282,0x4E0D,0x4F9D,0x8D56)
+    }
+    elseif ($Score -ge 7) {
+        $note = (UText 0x9AD8,0x4F18,0x5148,0x7EA7,0x53D8,0x66F4) + $sep + (UText 0x5EFA,0x8BAE,0x8DDF,0x8E2A)
+    }
+    return $note
+}
 function Format-FocusSection {
     param(
         [string]$Name,
@@ -730,6 +749,11 @@ function Format-FocusSection {
         foreach ($commit in $highPriority) {
             $lines.Add("  - $(Get-CompactSubject -Subject $commit.subject)")
             $lines.Add("    - " + (Get-Text "summary") + ": $(Get-CompactSummary -Subject $commit.subject -Tags $commit.tags)")
+            # 影响/跟进提示（提升 Actionability）
+            $impactNote = Get-CommitImpactNote -Subject $commit.subject -Tags $commit.tags -Score $commit.importance_score
+            if ($impactNote) {
+                $lines.Add("    - " + (UText 0x5F71,0x54CD) + "/" + (UText 0x8DDF,0x8FDB) + ": $impactNote")
+            }
             $lines.Add("    - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $RepoWebBaseUrl -Sha $commit.sha))")
             if ($commit.files.Count -gt 0) {
                 $previewFiles = Get-DisplayFileNames -Files ($commit.files | Select-Object -First 3)
