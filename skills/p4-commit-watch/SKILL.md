@@ -113,6 +113,10 @@ powershell -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.open
 
 #### ✅ 含 Lua 文件（Lua > 0）→ 专项 Code Review（必做，不得省略）
 
+**执行 Code Review 之前，必须先读取项目约定文档：**
+`C:\Users\banqiang\.openclaw\skills\p4-commit-watch\references\lua-review-conventions.md`
+按照其中的约定校正判断，避免将已知等效写法或项目惯例误判为问题。
+
 ```
 [Code Review]
 - 意图：本次改动是...（1句）
