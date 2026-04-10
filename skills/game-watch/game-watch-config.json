@@ -1,0 +1,25 @@
+{
+  "cookie_file": "C:/Users/banqiang/.openclaw/workspace/scripts/cookies.txt",
+
+  "ios_charts": {
+    "enabled": true,
+    "country": "cn",
+    "device": "iphone",
+    "top_n": 30,
+    "brands": [
+      { "id": "paid",      "label": "畅销总榜" },
+      { "id": "game_paid", "label": "畅销游戏榜" },
+      { "id": "free",      "label": "免费总榜" }
+    ]
+  },
+
+  "tracked_games": [
+    {
+      "name": "王者荣耀世界",
+      "taptap_id": 744415,
+      "ios_app_id": "",
+      "steam_app_id": "",
+      "note": "腾讯天美，2026-04-10 首日公测"
+    }
+  ]
+}
