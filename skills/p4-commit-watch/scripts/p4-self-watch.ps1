@@ -84,6 +84,20 @@ foreach ($repo in $repos) {
             } else {
                 ($rawDiff | Select-Object -First 300) -join "`n"
             }
+
+            # 对 [add] 操作的 Lua 文件，p4 describe -du 不会展开内容，用 p4 print 补充
+            $addedLuaFiles = @($codeFiles | Where-Object { $_.Path -match "\.lua$" -and $_.Action -eq "add" })
+            if ($addedLuaFiles.Count -gt 0) {
+                $extraContent = @()
+                foreach ($lf in $addedLuaFiles) {
+                    $fileRef = "$($lf.Path)#$($lf.Rev)"
+                    $extraContent += "`n==== $fileRef (text/new) ===="
+                    $printLines = @(p4 print -q $fileRef 2>&1 | Select-Object -First 200)
+                    $extraContent += ($printLines -join "`n")
+                }
+                $diffContent += "`n" + ($extraContent -join "`n")
+            }
+
             $diffTmpFile = [System.IO.Path]::GetTempFileName() + ".txt"
             [System.IO.File]::WriteAllText($diffTmpFile, $diffContent, [System.Text.Encoding]::UTF8)
         }
