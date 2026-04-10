@@ -7,9 +7,8 @@
     "device": "iphone",
     "top_n": 30,
     "brands": [
-      { "id": "grossing", "genre": "36", "label": "畅销总榜" },
-      { "id": "grossing", "genre": "6014", "label": "畅销游戏榜" },
-      { "id": "free",     "genre": "6",  "label": "免费游戏榜" }
+      { "id": "grossing", "genre": "36",   "label": "畅销总榜" },
+      { "id": "grossing", "genre": "6014", "label": "畅销游戏榜" }
     ]
   },
 
@@ -17,7 +16,7 @@
     {
       "name": "王者荣耀世界",
       "taptap_id": 744415,
-      "ios_app_id": "",
+      "ios_app_id": "6499426853",
       "steam_app_id": "",
       "note": "腾讯天美，2026-04-10 首日公测"
     }
