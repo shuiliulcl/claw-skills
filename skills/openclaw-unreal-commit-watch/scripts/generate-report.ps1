@@ -191,7 +191,11 @@ function Get-FocusDefinitions {
                 "/pawn",
                 "/gamemode",
                 "/gamestate",
-                "/statetree/"
+                "/statetree/",
+                "/mover/",
+                "/moveranim",
+                "/moverexamples/",
+                "/moverintegrations/"
             )
             SubjectPatterns = @(
                 "(?i)\bgameplay\b",
@@ -205,7 +209,8 @@ function Get-FocusDefinitions {
                 "(?i)\bplayer\b",
                 "(?i)\bpawn\b",
                 "(?i)\bstate tree\b",
-                "(?i)\bstatetree\b"
+                "(?i)\bstatetree\b",
+                "(?i)\bmover\b"
             )
         }
         AI = @{
