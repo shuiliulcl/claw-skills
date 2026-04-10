@@ -210,27 +210,27 @@ function Get-FocusDefinitions {
         }
         AI = @{
             PathPatterns = @(
-                "/aimodule/",
-                "/behaviortree/",
-                "/blackboard/",
-                "/navigation",
-                "/navmesh",
-                "/smartobject",
-                "/massai",
-                "/perception",
-                "/eqs"
+                "/ecabridge/",
+                "/aiassistant/",
+                "/learningcore/",
+                "/nne/",
+                "/nnedenoiser/",
+                "/nneruntimeort/",
+                "/source/runtime/nne"
             )
             SubjectPatterns = @(
-                "(?i)\bai\b",
-                "(?i)\bbehavior tree\b",
-                "(?i)\bbehaviortree\b",
-                "(?i)\bblackboard\b",
-                "(?i)\bnavigation\b",
-                "(?i)\bnavmesh\b",
-                "(?i)\bsmart object\b",
-                "(?i)\bmassai\b",
-                "(?i)\bperception\b",
-                "(?i)\beqs\b"
+                "(?i)\becabridge\b",
+                "(?i)\becabridge\b",
+                "(?i)\bai\s*assistant\b",
+                "(?i)\baiassistant\b",
+                "(?i)\blearningcore\b",
+                "(?i)\bnndenoiser\b",
+                "(?i)\bnnruntime\b",
+                "(?i)\bonnx\b",
+                "(?i)\binference\b",
+                "(?i)\bneural\s*network\b",
+                "(?i)\bml\s*deformer\b",
+                "(?i)\bllm\b"
             )
         }
     }
