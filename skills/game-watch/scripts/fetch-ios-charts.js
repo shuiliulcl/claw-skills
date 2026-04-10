@@ -1,9 +1,14 @@
 /**
  * game-watch/scripts/fetch-ios-charts.js
- * 抓取七麦数据 iOS 榜单（畅销总榜、畅销游戏榜、免费总榜）
+ * 抓取七麦数据 iOS 榜单（畅销总榜、畅销游戏榜、免费游戏榜）
  *
  * 用法: node fetch-ios-charts.js [date YYYY-MM-DD] [-config <path>]
  * 输出: JSON 到 stdout
+ *
+ * 榜单参数（来自七麦 URL）：
+ *   畅销总榜:   brand=grossing, genre=36
+ *   畅销游戏榜: brand=grossing, genre=6
+ *   免费游戏榜: brand=free,     genre=6
  */
 
 const https = require('https');
@@ -32,13 +37,13 @@ function loadCookies(domain) {
     .join('; ');
 }
 
-function fetchBoard(brand, date) {
+function fetchBoard(boardConfig, date) {
   return new Promise((resolve) => {
     const cookies = loadCookies('qimai.cn');
     const qs = new URLSearchParams({
-      brand,
+      brand: boardConfig.id,
       country: chartConfig.country,
-      genre: '0',
+      genre: boardConfig.genre || '0',
       device: chartConfig.device,
       date,
       page: '1'
@@ -87,8 +92,9 @@ async function main() {
   const result = { date, charts: {} };
 
   for (const board of chartConfig.brands) {
-    const data = await fetchBoard(board.id, date);
-    result.charts[board.id] = { label: board.label, list: data };
+    const data = await fetchBoard(board, date);
+    // 用 label 作为 key 更直观
+    result.charts[board.label] = { brand: board.id, genre: board.genre, list: data };
   }
 
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');

@@ -7,9 +7,9 @@
     "device": "iphone",
     "top_n": 30,
     "brands": [
-      { "id": "paid",      "label": "畅销总榜" },
-      { "id": "game_paid", "label": "畅销游戏榜" },
-      { "id": "free",      "label": "免费总榜" }
+      { "id": "grossing", "genre": "36", "label": "畅销总榜" },
+      { "id": "grossing", "genre": "6",  "label": "畅销游戏榜" },
+      { "id": "free",     "genre": "6",  "label": "免费游戏榜" }
     ]
   },
 
