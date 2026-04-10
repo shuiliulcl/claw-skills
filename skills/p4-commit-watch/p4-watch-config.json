@@ -1,0 +1,22 @@
+﻿{
+  "repos": [
+    {
+      "name": "Stb_2.5",
+      "stream": "//root/game/Stb_2.5/...",
+      "label": "Stb_2.5"
+    }
+  ],
+  "self_watch": {
+    "p4_user": "shuiliu",
+    "hours_back": 72,
+    "enabled": true
+  },
+  "team_watch": {
+    "members": [],
+    "hours_back": 24,
+    "enabled": false
+  },
+  "notify": {
+    "feishu_open_id": "ou_2b6334604d63123d4dc232d596e9d46d"
+  }
+}
