@@ -190,7 +190,8 @@ function Get-FocusDefinitions {
                 "/player",
                 "/pawn",
                 "/gamemode",
-                "/gamestate"
+                "/gamestate",
+                "/statetree/"
             )
             SubjectPatterns = @(
                 "(?i)\bgameplay\b",
@@ -202,7 +203,9 @@ function Get-FocusDefinitions {
                 "(?i)\binput\b",
                 "(?i)\bmovement\b",
                 "(?i)\bplayer\b",
-                "(?i)\bpawn\b"
+                "(?i)\bpawn\b",
+                "(?i)\bstate tree\b",
+                "(?i)\bstatetree\b"
             )
         }
         AI = @{
@@ -210,29 +213,24 @@ function Get-FocusDefinitions {
                 "/aimodule/",
                 "/behaviortree/",
                 "/blackboard/",
-                "/statetree/",
                 "/navigation",
                 "/navmesh",
                 "/smartobject",
                 "/massai",
                 "/perception",
-                "/eqs",
-                "/pcg/"
+                "/eqs"
             )
             SubjectPatterns = @(
                 "(?i)\bai\b",
                 "(?i)\bbehavior tree\b",
                 "(?i)\bbehaviortree\b",
                 "(?i)\bblackboard\b",
-                "(?i)\bstate tree\b",
-                "(?i)\bstatetree\b",
                 "(?i)\bnavigation\b",
                 "(?i)\bnavmesh\b",
                 "(?i)\bsmart object\b",
                 "(?i)\bmassai\b",
                 "(?i)\bperception\b",
-                "(?i)\beqs\b",
-                "(?i)\bpcg\b"
+                "(?i)\beqs\b"
             )
         }
     }
