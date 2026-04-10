@@ -182,3 +182,14 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out
 $logFile = Join-Path $logDir "$((Get-Date).ToString('yyyy-MM-dd'))-team.txt"
 $report | Out-File -FilePath $logFile -Encoding utf8
 Write-Host "Report saved: $logFile"
+
+# 输出所有 diff 路径供 AI 读取（逗号分隔）
+$allDiffPaths = @()
+foreach ($member in $members) {
+    foreach ($c in @($teamReport[$member])) {
+        if ($c.DiffTmpFile) { $allDiffPaths += $c.DiffTmpFile }
+    }
+}
+if ($allDiffPaths.Count -gt 0) {
+    Write-Host "DIFF_PATHS:$($allDiffPaths -join ',')"
+}
