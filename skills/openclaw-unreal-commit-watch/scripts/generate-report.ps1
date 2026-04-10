@@ -164,7 +164,9 @@ function Get-FocusDefinitions {
                 "/skeletalmeshmodelingtools/",
                 "/posesearch/",
                 "/sequencer/",
-                "/moviesceneanimmixer/"
+                "/moviesceneanimmixer/",
+                "/uaf/",
+                "/riglogicuaf/"
             )
             SubjectPatterns = @(
                 "(?i)\banimation\b",
@@ -175,7 +177,8 @@ function Get-FocusDefinitions {
                 "(?i)\bmontage\b",
                 "(?i)\bpose\b",
                 "(?i)\bmotion matching\b",
-                "(?i)\bsequencer\b"
+                "(?i)\bsequencer\b",
+                "(?i)\buaf\b"
             )
         }
         Gameplay = @{
