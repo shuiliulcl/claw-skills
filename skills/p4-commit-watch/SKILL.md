@@ -86,7 +86,7 @@ Markdown 结构：
 
 **第一步：运行脚本**
 ```
-powershell -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\workspace\scripts\p4-self-watch.ps1 -HoursBack 12
+pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\skills\p4-commit-watch\scripts\p4-self-watch.ps1 -HoursBack 12
 ```
 
 **第二步 ~ 第四步**：同组员日报（收集 DIFF_FILE → 逐个读取 → 生成报告）
