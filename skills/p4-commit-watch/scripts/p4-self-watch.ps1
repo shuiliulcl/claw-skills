@@ -79,10 +79,12 @@ foreach ($repo in $repos) {
         if ($codeFiles.Count -gt 0) {
             $rawDiff = @(p4 describe -du $clNum 2>&1)
             $diffStart = ($rawDiff | Select-String -Pattern "^Differences" | Select-Object -First 1).LineNumber
+            # 动态行数上限：基础 500 行，每多一个代码文件加 150 行，上限 3000
+            $diffLineLimit = [Math]::Min(500 + $codeFiles.Count * 150, 3000)
             $diffContent = if ($diffStart) {
-                ($rawDiff | Select-Object -Skip $diffStart | Select-Object -First 300) -join "`n"
+                ($rawDiff | Select-Object -Skip $diffStart | Select-Object -First $diffLineLimit) -join "`n"
             } else {
-                ($rawDiff | Select-Object -First 300) -join "`n"
+                ($rawDiff | Select-Object -First $diffLineLimit) -join "`n"
             }
 
             # 对 [add] 操作的 Lua 文件，p4 describe -du 不会展开内容，用 p4 print 补充
@@ -141,11 +143,10 @@ foreach ($c in $allRepoCommits) {
     $lines += "TAGS: $($c.Tags)"
     $lines += "FILES: $($c.FileCount) total (C++/H: $($c.CPP) | BP: $($c.BP) | Lua: $($c.Lua) | Other: $($c.Other))"
     $lines += "CHANGED:"
-    foreach ($f in ($c.Files | Select-Object -First 8)) {
+    foreach ($f in $c.Files) {
         $short = $f.Path -replace [regex]::Escape($stream.TrimEnd(".")), ""
         $lines += "  [$($f.Action)] $short"
     }
-    if ($c.Files.Count -gt 8) { $lines += "  ... +$($c.Files.Count - 8) more" }
     if ($c.DiffTmpFile) { $lines += "DIFF_FILE: $($c.DiffTmpFile)" }
     $lines += ""
 }
