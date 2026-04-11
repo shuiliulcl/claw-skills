@@ -9,11 +9,11 @@ description: Pull updates for a locally cloned Unreal Engine repository, analyze
 
 ---
 
-## ⚠️ 输出规则（最高优先级）
+## ⚠️ 输出规则（最高优先级，任何情况下都适用）
 
 - **在最终报告输出之前，绝对不输出任何文字**
 - 不输出步骤进度（"正在运行..."、"已读取..."、"开始评估..."等）
-- 不输出 Evaluator 评分 JSON、分析过程、内部判断
+- **Evaluator 评分 JSON、分数、分析过程、反馈文字，全部只在内心计算，一字都不得写出来**
 - 只有最终报告内容是输出，其他全部静默执行
 
 ---
@@ -31,9 +31,9 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 
 用 `Get-Content -Raw -Encoding UTF8` 读取，确保中文正确显示。
 
-**第三步：Evaluator 质量评估（内部执行，不对外输出）**
+**第三步：质量评估（纯内心判断，不得有任何文字输出）**
 
-按以下四个维度打分（1-10）：
+在内心按以下四个维度判断报告质量（1-10），全程不写任何字：
 
 | 维度 | 说明 |
 |------|------|
@@ -42,12 +42,10 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 | **Actionability** | 是否有影响判断和值得跟踪的点，而不是纯罗列？ |
 | **Conciseness** | 长度是否合理（500-2000字）？有无冗余？ |
 
-**通过条件**：overall ≥ 7.0 且每项 ≥ 6.0
+通过条件：overall ≥ 7.0 且每项 ≥ 6.0
 
-Evaluator JSON（内部使用，**绝不对外输出**）：
-- 单行紧凑格式，不得换行或缩进
-- feedback ≤ 30 字，逗号分隔核心问题
-- 示例：`{"scores":{"coverage":8,"signal_to_noise":7,"actionability":7,"conciseness":8},"overall":7.5,"pass":true,"feedback":""}`
+> ⚠️ **评分过程完全在内心完成。JSON、分数、分析文字一字都不得输出。违反即为错误。**
+> 唯一允许的输出：报告通过时直接输出报告；不通过时输出评估头 + 报告。没有第三种情况。
 
 **第四步：输出报告**
 
@@ -59,7 +57,7 @@ Evaluator JSON（内部使用，**绝不对外输出**）：
 
 评分：Coverage=X, Signal-to-noise=Y, Actionability=Z, Conciseness=W, Overall=V
 
-反馈：<feedback 原文，不换行>
+反馈：<30字以内，逗号分隔核心问题，不换行>
 
 --- 以下为原始报告 ---
 
@@ -75,24 +73,24 @@ Evaluator JSON（内部使用，**绝不对外输出**）：
 ### 摘要语言规则
 
 - **摘要必须全中文**，不得中英混排
-- commit subject 可保留为英文，但摘要行必须是纯中文描述
+- commit subject 可保留为英文原文（链接标题），但对应的摘要行必须是纯中文描述
 - 错误示例：`ControlRig & 动画 mode: initial release of Direct Mesh Control`
-- 正确示例：`ControlRig 动画模式初始发布 Direct Mesh Control 实验性功能`
+- 正确示例：`ControlRig 动画模式发布 Direct Mesh Control 实验性直接网格体控制插件`
 
 ### 低信息量提交处理
 
 以下类型提交不展开摘要，只计入数量：
-- 纯注释/格式修复
+- 纯注释 / 格式修复
 - 文档更新（`.md`、`.txt` 仅改动）
 - 版本号 bump、依赖更新
-- Revert commit（直接标注"回退"即可）
+- Revert commit（直接标注"回退"）
 
-### Evaluator 常见扣分项
+### 常见扣分项（供内心判断参考）
 
 - 摘要出现中英混排 → Signal-to-noise 扣分
-- AI 模块无任何可跟踪内容却未说明原因 → Actionability 扣分
+- AI 模块无内容但未说明原因 → Actionability 扣分
 - 影响标注不一致（部分有"建议跟踪"，部分没有）→ Actionability 扣分
-- 报告过长（> 2000字）→ Conciseness 扣分
+- 报告超过 2000 字 → Conciseness 扣分
 
 ---
 
