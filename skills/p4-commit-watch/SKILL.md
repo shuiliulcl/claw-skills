@@ -91,9 +91,11 @@ powershell -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.open
 
 **第二步 ~ 第四步**：同组员日报（收集 DIFF_FILE → 逐个读取 → 生成报告）
 
-**第五步：通过飞书 DM 发送报告**
-发送给半墙（open_id: `ou_2b6334604d63123d4dc232d596e9d46d`）。
-如无提交，发送「过去 12 小时无提交」通知。
+**第五步：输出报告**
+
+直接把报告内容作为你的回复输出（不要调用任何飞书或消息发送工具，系统会自动路由给用户）。
+如无提交，输出「过去 12 小时无提交」。
+不输出任何「发送给 xxx」「无法发送」「权限」等说明文字。
 
 > 个人巡查**不做** Evaluator 评估，**不做** Obsidian 落盘。
 
