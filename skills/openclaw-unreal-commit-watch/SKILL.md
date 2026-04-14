@@ -119,7 +119,7 @@ cron 只做触发，执行逻辑全在本 SKILL.md 中。
 |------|--------------|
 | **动画** | Animation、Control Rig、Sequencer、Pose Search、Motion Matching、Retargeting、UAF、IK、SkeletalMesh |
 | **Gameplay** | GameplayAbilities、StateTree、Input、Character、Pawn、Mover、CommonUI |
-| **AI（辅助开发）** | ECABridge、AIAssistant、NNE、LearningCore、LLM 相关 |
+| **AI（辅助开发）** | ECABridge、AIAssistant、NNE、LearningCore、LLM 相关、ToolSet |
 
 > ⚠️ AI 模块指**引擎 AI 辅助开发工具**，不包含游戏内 AI（BehaviorTree、Navigation、Perception、PCG 等）。
 
