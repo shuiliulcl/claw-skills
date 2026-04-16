@@ -25,11 +25,29 @@ description: Pull updates for a locally cloned Unreal Engine repository, analyze
 powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\run.ps1'
 ```
 
-**第二步:读取最新报告文件**
+**第二步:读取最新报告文件，并验证日期**
 
 在 `C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\output\` 下找最新的 `.md` 文件(按 `LastWriteTime` 降序取第一个)。
 
 用 `Get-Content -Raw -Encoding UTF8` 读取,确保中文正确显示。
+
+**⚠️ 读取后必须验证报告日期（硬检查，不可跳过）：**
+
+- 从报告内容中找到 `生成时间:` 字段，提取其中的日期（格式 `YYYY-MM-DD`）
+- 与**当天日期**比较（以本机时区 Asia/Shanghai 为准）
+- 如果报告日期 == 今天 → 继续后续步骤
+- 如果报告日期 != 今天（旧数据）→ **立即重新执行第一步（最多重试 1 次）**
+  - 重试后再读取最新文件，再次验证日期
+  - 重试后日期仍不是今天 → **硬失败，输出以下错误并终止**：
+
+```
+❌ 日报生成失败：脚本运行后仍未生成今日报告。
+报告日期：<实际日期>
+预期日期：<今天日期>
+请手动检查 run.ps1 是否正常执行。
+```
+
+> **禁止在日期验证失败时输出旧数据的报告内容。**
 
 **第三步:质量评估(纯内心判断,不得有任何文字输出)**
 
@@ -47,7 +65,20 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 > ⚠️ **评分过程完全在内心完成。JSON、分数、分析文字一字都不得输出。违反即为错误。**
 > 唯一允许的输出:报告通过时直接输出报告;不通过时输出评估头 + 报告。没有第三种情况。
 
-**第四步:输出报告**
+**第四步:重写摘要并输出报告**
+
+在输出之前，对报告中每一条重点提交的「摘要」字段，必须按以下规则重写：
+
+- **必须全中文**，不得出现中英混排
+- **禁止直接复制 commit subject**（无论英文还是半翻译版本）
+- 用一句话说清楚这个提交**做了什么、影响什么**，针对引擎开发者视角
+- 如果 subject 本身已经包含足够信息，用中文意译；无法准确理解的保留关键英文专有名词（如 Control Rig、Sequencer、StateTree），但周围语境必须是中文
+- 错误示例：`Control Rig: Fix moving assset to a different folder not triggering function identifier replacement`
+- 正确示例：`修复 Control Rig 资产移动到其他文件夹时，函数标识符替换未触发的问题`
+
+> ⚠️ **脚本生成的摘要字段只是参考，不得原样输出。AI 必须在此步骤重写所有摘要。**
+
+**第五步:输出报告**
 
 - **通过** → 直接输出报告内容,无任何前缀后缀
 - **不通过** → 按以下精确格式输出(注意空行):
