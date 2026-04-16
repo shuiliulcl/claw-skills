@@ -1,8 +1,8 @@
 # 含密钥，不上传
-config.py
+app_config/local.py
 
 # 运行时文件
-bot.pid
+runtime_data/
 __pycache__/
 *.pyc
 *.pyo
