@@ -19,4 +19,5 @@ if (-not (Test-Path -LiteralPath $ytDlpExe)) {
 New-Item -ItemType Directory -Force -Path $secretsDir | Out-Null
 New-Item -ItemType Directory -Force -Path $persistDir | Out-Null
 
+$env:PYTHONIOENCODING = "utf-8"
 & $pythonExe $scriptPath --skill-root $root --yt-dlp $ytDlpExe --config $configPath

@@ -223,8 +223,9 @@ def enrich_candidate_metadata(
 
 
 def should_enrich_entry(entry: dict[str, Any]) -> bool:
-    wanted_fields = ["upload_date", "duration", "description", "channel", "uploader"]
-    return any(not entry.get(field) for field in wanted_fields)
+    # Always enrich if upload_date is missing — this is the critical field for recency filtering.
+    # Other fields (duration, channel, etc.) are optional and do not block enrich from being skipped.
+    return not entry.get("upload_date")
 
 
 def fetch_video_metadata(
