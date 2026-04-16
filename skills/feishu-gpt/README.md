@@ -26,7 +26,6 @@
 feishu-gpt/
 ├── app_config/        # 配置层（local.py / local.example.py）
 ├── bot_runtime/       # 程序运行时模块
-├── runtime_data/      # 运行时数据（pid / tasks）
 ├── agents.example.md  # AGENTS 模板
 ├── AGENTS.md          # 默认工作区初始化指令
 ├── bot.py             # 极薄入口
@@ -138,7 +137,7 @@ python bot.py --local-chat
 
 双击 `restart.vbs` 即可：
 
-1. 读取 `runtime_data/bot.pid`，精准杀掉旧进程
+1. 读取工作区下的 `runtime_data/bot.pid`，精准杀掉旧进程
 2. 启动新的 bot 进程
 
 > `restart.vbs` 作为入口，显式以 `cmd /k` 打开窗口，避免 Windows 闪退问题。
@@ -174,7 +173,7 @@ python bot.py --local-chat
 | `FEISHU_CLI_AS` | app_config/local.py | 空 | 预留的 CLI 身份配置 |
 | `FEISHU_CLI_TIMEOUT` | app_config/local.py | 120 | 单次 CLI 调用超时秒数 |
 | `FEISHU_CLI_EXTRA_ARGS` | app_config/local.py | 空列表 | 默认附加参数 |
-| `runtime_data/` | 运行目录 | - | 存放 `bot.pid` 和 `scheduled_tasks.json` |
+| `runtime_data/` | 工作区运行目录 | - | 存放 `bot.pid` 和 `scheduled_tasks.json` |
 
 ## 常见问题
 

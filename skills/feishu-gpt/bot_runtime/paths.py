@@ -5,7 +5,7 @@ from .config_runtime import AGENTS_PATH
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_DIR = os.path.join(BASE_DIR, "app_config")
-RUNTIME_DATA_DIR = os.path.join(BASE_DIR, "runtime_data")
+LEGACY_RUNTIME_DATA_DIR = os.path.join(BASE_DIR, "runtime_data")
 
 
 def get_agent_workspace() -> str:
@@ -25,16 +25,28 @@ def get_heartbeat_file_path() -> str:
     return os.path.join(get_agent_workspace(), "HEARTBEAT.md")
 
 
+def get_runtime_data_dir() -> str:
+    return os.path.join(get_agent_workspace(), "runtime_data")
+
+
+def get_legacy_runtime_data_dir() -> str:
+    return LEGACY_RUNTIME_DATA_DIR
+
+
 def get_pid_file_path() -> str:
-    return os.path.join(RUNTIME_DATA_DIR, "bot.pid")
+    return os.path.join(get_runtime_data_dir(), "bot.pid")
 
 
 def get_tasks_file_path() -> str:
-    return os.path.join(RUNTIME_DATA_DIR, "scheduled_tasks.json")
+    return os.path.join(get_runtime_data_dir(), "scheduled_tasks.json")
+
+
+def get_legacy_tasks_file_path() -> str:
+    return os.path.join(get_legacy_runtime_data_dir(), "scheduled_tasks.json")
 
 
 def ensure_runtime_dirs():
-    os.makedirs(RUNTIME_DATA_DIR, exist_ok=True)
+    os.makedirs(get_runtime_data_dir(), exist_ok=True)
 
 
 def load_agent_system_prompt() -> str:

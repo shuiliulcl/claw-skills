@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -13,7 +14,7 @@ from .config_runtime import (
     TASK_POLL_INTERVAL_SECONDS,
     WS_RESTART_THRESHOLD,
 )
-from .paths import ensure_runtime_dirs, get_tasks_file_path, load_heartbeat_text
+from .paths import ensure_runtime_dirs, get_legacy_tasks_file_path, get_tasks_file_path, load_heartbeat_text
 from .utils import format_timestamp_ms
 
 
@@ -24,8 +25,16 @@ def save_scheduled_tasks():
 
 
 def load_scheduled_tasks():
+    ensure_runtime_dirs()
+    tasks_file_path = get_tasks_file_path()
+    legacy_tasks_file_path = get_legacy_tasks_file_path()
+
     try:
-        with open(get_tasks_file_path(), "r", encoding="utf-8") as f:
+        if not os.path.exists(tasks_file_path) and os.path.exists(legacy_tasks_file_path):
+            shutil.copyfile(legacy_tasks_file_path, tasks_file_path)
+            print(f"[INFO] 已迁移定时任务文件到工作区: {tasks_file_path}")
+
+        with open(tasks_file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         state.scheduled_tasks = data if isinstance(data, dict) else {}
     except FileNotFoundError:
