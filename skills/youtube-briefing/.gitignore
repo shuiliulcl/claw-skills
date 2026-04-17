@@ -1,0 +1,5 @@
+youtube_briefing.config.json
+outputs/
+OutputExample/
+__pycache__/
+*.pyc

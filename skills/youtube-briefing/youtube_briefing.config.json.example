@@ -1,0 +1,7 @@
+{
+  "paperhub_api_key": "sk-your-api-key-here",
+  "paperhub_api_base": "https://tc-paperhub.diezhi.net/v1/chat/completions",
+  "paperhub_model": "glm-5",
+  "paperhub_fallback_model": "qwen3.6-plus",
+  "ffmpeg_path": "C:\\path\\to\\ffmpeg.exe"
+}
