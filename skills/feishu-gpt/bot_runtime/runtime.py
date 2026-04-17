@@ -3,10 +3,10 @@ import os
 import threading
 
 import lark_oapi as lark
-from lark_oapi.api.im.v1 import P2ImMessageReceiveV1
+from lark_oapi.api.im.v1 import P2ImMessageReceiveV1, P2ImMessageRecalledV1
 
 from . import state
-from .agent import ask_chatgpt, build_prompt, run_agent_heartbeat_check, update_history
+from .agent import ThinkingInterrupted, ask_chatgpt, build_prompt, run_agent_heartbeat_check, update_history
 from .commands import handle_command
 from .config_runtime import APP_ID, APP_SECRET, OPENAI_MODEL
 from .messaging import (
@@ -26,17 +26,28 @@ from .utils import first_non_empty
 
 
 def process_and_reply(chat_id: str, text: str, sender_id: str, reply_id: str, message_id: str, quoted_text: str | None = None):
+    cancel_event = state.register_pending_message(message_id)
     with state.chat_locks[chat_id]:
         reaction_id = add_thinking_reaction(message_id)
         try:
+            if cancel_event.is_set():
+                print(f"[消息已撤回] {sender_id}: {message_id}")
+                return
             prompt = build_prompt(chat_id, text, quoted_text)
-            reply = ask_chatgpt(prompt, build_agent_system_prompt())
+            reply = ask_chatgpt(prompt, build_agent_system_prompt(), cancel_event=cancel_event)
+            if cancel_event.is_set():
+                print(f"[思考已中断] {sender_id}: {message_id}")
+                return
             print(f"[ChatGPT 回复] {sender_id}: {reply[:80]}{'...' if len(reply) > 80 else ''}")
             update_history(chat_id, text, reply)
+        except ThinkingInterrupted:
+            print(f"[思考已中断] {sender_id}: {message_id}")
+            return
         except Exception as e:
             reply = f"（处理出错：{e}）"
         finally:
             remove_reaction(message_id, reaction_id)
+            state.finish_pending_message(message_id)
     send_reply(reply_id, reply)
 
 
@@ -78,6 +89,18 @@ def on_message(data: P2ImMessageReceiveV1) -> None:
     ).start()
 
 
+def on_message_recalled(data: P2ImMessageRecalledV1) -> None:
+    event = data.event
+    message_id = getattr(event, "message_id", None)
+    if not message_id:
+        return
+    recall_type = getattr(event, "recall_type", None) or "unknown"
+    chat_id = getattr(event, "chat_id", None) or "unknown"
+    cancelled = state.cancel_pending_message(message_id)
+    status = "已中断思考" if cancelled else "未命中运行中思考"
+    print(f"[消息撤回] chat={chat_id} message={message_id} recall_type={recall_type} {status}")
+
+
 def write_pid():
     ensure_runtime_dirs()
     pid_path = get_pid_file_path()
@@ -106,7 +129,12 @@ def main():
     print(f"  TASKS: {get_tasks_file_path()}")
     print("=" * 50)
 
-    handler = lark.EventDispatcherHandler.builder("", "").register_p2_im_message_receive_v1(on_message).build()
+    handler = (
+        lark.EventDispatcherHandler.builder("", "")
+        .register_p2_im_message_receive_v1(on_message)
+        .register_p2_im_message_recalled_v1(on_message_recalled)
+        .build()
+    )
     ws_client = lark.ws.Client(
         APP_ID,
         APP_SECRET,

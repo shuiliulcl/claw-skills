@@ -8,10 +8,20 @@ from .paths import build_agent_system_prompt, load_heartbeat_text
 from .tools import execute_tool, get_all_tools
 
 
-def ask_chatgpt(prompt: str, system_prompt: str = "") -> str:
+class ThinkingInterrupted(Exception):
+    pass
+
+
+def _raise_if_cancelled(cancel_event=None):
+    if cancel_event is not None and cancel_event.is_set():
+        raise ThinkingInterrupted("消息已撤回，已中断本次思考")
+
+
+def ask_chatgpt(prompt: str, system_prompt: str = "", cancel_event=None) -> str:
     if not OPENAI_API_KEY:
         return "（未配置 OPENAI_API_KEY）"
     try:
+        _raise_if_cancelled(cancel_event)
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -19,12 +29,14 @@ def ask_chatgpt(prompt: str, system_prompt: str = "") -> str:
         tools = get_all_tools()
 
         for _ in range(MAX_TOOL_STEPS):
+            _raise_if_cancelled(cancel_event)
             response = openai_client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=messages,
                 tools=tools,
                 tool_choice="auto",
             )
+            _raise_if_cancelled(cancel_event)
             message = response.choices[0].message
             tool_calls = getattr(message, "tool_calls", None) or []
 
@@ -51,6 +63,7 @@ def ask_chatgpt(prompt: str, system_prompt: str = "") -> str:
             )
 
             for tool_call in tool_calls:
+                _raise_if_cancelled(cancel_event)
                 try:
                     arguments = json.loads(tool_call.function.arguments or "{}")
                     tool_result = execute_tool(tool_call.function.name, arguments)
@@ -59,6 +72,7 @@ def ask_chatgpt(prompt: str, system_prompt: str = "") -> str:
                         {"error": str(e), "tool": tool_call.function.name},
                         ensure_ascii=False,
                     )
+                _raise_if_cancelled(cancel_event)
 
                 messages.append(
                     {
@@ -69,6 +83,8 @@ def ask_chatgpt(prompt: str, system_prompt: str = "") -> str:
                 )
 
         return "（工具调用轮数超限，请拆分任务后重试）"
+    except ThinkingInterrupted:
+        raise
     except APITimeoutError:
         return "（响应超时，请重试）"
     except AuthenticationError:

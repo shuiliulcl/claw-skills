@@ -28,6 +28,8 @@ processed_order: deque = deque()
 
 conversations: dict = {}
 chat_locks: dict = defaultdict(threading.Lock)
+pending_message_lock = threading.Lock()
+pending_messages: dict[str, threading.Event] = {}
 
 
 def is_duplicate(msg_id: str) -> bool:
@@ -40,3 +42,24 @@ def is_duplicate(msg_id: str) -> bool:
         processed_ids.add(msg_id)
         processed_order.append(msg_id)
         return False
+
+
+def register_pending_message(message_id: str) -> threading.Event:
+    cancel_event = threading.Event()
+    with pending_message_lock:
+        pending_messages[message_id] = cancel_event
+    return cancel_event
+
+
+def cancel_pending_message(message_id: str) -> bool:
+    with pending_message_lock:
+        cancel_event = pending_messages.get(message_id)
+    if cancel_event is None:
+        return False
+    cancel_event.set()
+    return True
+
+
+def finish_pending_message(message_id: str):
+    with pending_message_lock:
+        pending_messages.pop(message_id, None)
