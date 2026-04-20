@@ -25,17 +25,47 @@ PORT = 8765
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
+JOB_QUEUE: list[str] = []
+QUEUE_LOCK = threading.Lock()
+QUEUE_EVENT = threading.Event()
+
 
 def now_ts() -> float:
     return time.time()
 
 
-def create_job(url: str, skip_video: bool = False) -> dict:
+def queue_worker() -> None:
+    while True:
+        QUEUE_EVENT.wait()
+        while True:
+            job_id: str | None = None
+            with QUEUE_LOCK:
+                if JOB_QUEUE:
+                    job_id = JOB_QUEUE.pop(0)
+                else:
+                    QUEUE_EVENT.clear()
+                    break
+            if job_id:
+                run_job(job_id)
+
+
+def create_job(
+    url: str,
+    output_dir: str = "",
+    skip_video: bool = False,
+    extract_keyframes: bool = True,
+    scene_threshold: float = 0.04,
+    min_interval: float = 10.0,
+) -> dict:
     job_id = uuid.uuid4().hex[:8]
     job = {
         "id": job_id,
         "url": url,
+        "output_dir": output_dir or str(DEFAULT_OUTPUT_DIR),
         "skip_video": skip_video,
+        "extract_keyframes": extract_keyframes,
+        "scene_threshold": scene_threshold,
+        "min_interval": min_interval,
         "status": "queued",
         "created_at": now_ts(),
         "started_at": None,
@@ -50,7 +80,9 @@ def create_job(url: str, skip_video: bool = False) -> dict:
     }
     with JOBS_LOCK:
         JOBS[job_id] = job
-    threading.Thread(target=run_job, args=(job_id,), daemon=True).start()
+    with QUEUE_LOCK:
+        JOB_QUEUE.append(job_id)
+    QUEUE_EVENT.set()
     return job
 
 
@@ -70,6 +102,7 @@ def update_result_from_line(job: dict, line: str) -> None:
         "Canonical English subtitles: ": "canonical_english_subtitles",
         "Canonical AI Chinese subtitles: ": "canonical_ai_chinese_subtitles",
         "Outline: ": "outline",
+        "Keyframes: ": "keyframes",
     }
     for prefix, key in mappings.items():
         if line.startswith(prefix):
@@ -104,9 +137,16 @@ def run_job(job_id: str) -> None:
         job["status"] = "running"
         job["started_at"] = now_ts()
 
-    command = [str(PYTHON_EXE), str(CLI_SCRIPT), job["url"]]
+    output_dir = job.get("output_dir") or str(DEFAULT_OUTPUT_DIR)
+    command = [str(PYTHON_EXE), str(CLI_SCRIPT), job["url"], "--output-dir", output_dir]
     if job.get("skip_video"):
         command.append("--skip-video")
+    if not job.get("extract_keyframes", True):
+        command.append("--no-extract-keyframes")
+    else:
+        command.extend(["--scene-threshold", str(job.get("scene_threshold", 0.04))])
+        command.extend(["--min-interval", str(job.get("min_interval", 10.0))])
+
     try:
         process = subprocess.Popen(
             command,
@@ -148,13 +188,7 @@ def enrich_job_files(job: dict) -> None:
     files = []
     for child in sorted(path.iterdir()):
         if child.is_file():
-            files.append(
-                {
-                    "name": child.name,
-                    "size": child.stat().st_size,
-                    "path": str(child),
-                }
-            )
+            files.append({"name": child.name, "size": child.stat().st_size, "path": str(child)})
 
     featured = []
     video = next((item for item in files if item["name"].lower().endswith(".mp4")), None)
@@ -164,8 +198,19 @@ def enrich_job_files(job: dict) -> None:
         if item is not None:
             featured.append(item)
 
+    kf_dir = path / "keyframes"
+    kf_thumbnails: list[dict] = []
+    if kf_dir.exists():
+        kf_jpgs = sorted(kf_dir.glob("*.jpg"), key=lambda p: p.name)
+        kf_thumbnails = [{"name": f.name, "path": str(f), "size": f.stat().st_size} for f in kf_jpgs]
+        ts_file = kf_dir / "timestamps.txt"
+        if ts_file.exists():
+            featured.append({"name": "keyframes/timestamps.txt", "size": ts_file.stat().st_size, "path": str(ts_file)})
+
     job["result"]["files"] = files
     job["result"]["featured_files"] = featured
+    job["result"]["keyframe_thumbnails"] = kf_thumbnails
+    job["result"]["keyframes_count"] = len(kf_thumbnails)
 
 
 def get_job(job_id: str) -> dict | None:
@@ -179,6 +224,8 @@ def get_job(job_id: str) -> dict | None:
 def list_jobs() -> list[dict]:
     with JOBS_LOCK:
         values = list(JOBS.values())
+    with QUEUE_LOCK:
+        queue_positions = {jid: i + 1 for i, jid in enumerate(JOB_QUEUE)}
     values.sort(key=lambda item: item["created_at"], reverse=True)
     return [
         {
@@ -189,6 +236,7 @@ def list_jobs() -> list[dict]:
             "job_dir": item["job_dir"],
             "started_at": item["started_at"],
             "finished_at": item["finished_at"],
+            "queue_position": queue_positions.get(item["id"]),
         }
         for item in values
     ]
@@ -197,9 +245,18 @@ def list_jobs() -> list[dict]:
 def is_allowed_file(path: Path) -> bool:
     try:
         resolved = path.resolve()
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         return False
-    allowed_roots = [DEFAULT_OUTPUT_DIR.resolve(), WORKDIR.resolve()]
+    allowed_roots = [WORKDIR.resolve(), DEFAULT_OUTPUT_DIR.resolve()]
+    with JOBS_LOCK:
+        for job in JOBS.values():
+            for field in ("output_dir", "job_dir"):
+                val = job.get(field)
+                if val:
+                    try:
+                        allowed_roots.append(Path(val).resolve())
+                    except (ValueError, OSError):
+                        pass
     return any(str(resolved).startswith(str(root)) for root in allowed_roots)
 
 
@@ -241,8 +298,19 @@ class Handler(BaseHTTPRequestHandler):
             if not url:
                 self.respond_json({"error": "Missing url"}, status=HTTPStatus.BAD_REQUEST)
                 return
+            output_dir = str(payload.get("output_dir", "")).strip()
             skip_video = bool(payload.get("skip_video", False))
-            job = create_job(url, skip_video=skip_video)
+            extract_keyframes = bool(payload.get("extract_keyframes", True))
+            scene_threshold = float(payload.get("scene_threshold", 0.04))
+            min_interval = float(payload.get("min_interval", 10.0))
+            job = create_job(
+                url,
+                output_dir=output_dir,
+                skip_video=skip_video,
+                extract_keyframes=extract_keyframes,
+                scene_threshold=scene_threshold,
+                min_interval=min_interval,
+            )
             self.respond_json({"id": job["id"], "status": job["status"]}, status=HTTPStatus.CREATED)
             return
         if parsed.path.startswith("/api/jobs/") and parsed.path.endswith("/open-dir"):
@@ -298,6 +366,8 @@ class Handler(BaseHTTPRequestHandler):
             content_type = "text/plain; charset=utf-8"
         elif suffix == ".mp4":
             content_type = "video/mp4"
+        elif suffix in {".jpg", ".jpeg"}:
+            content_type = "image/jpeg"
 
         file_size = path.stat().st_size
         range_header = self.headers.get("Range")
@@ -362,6 +432,7 @@ INDEX_HTML = """<!doctype html>
       --ok: #dcefd9;
       --warn: #fde9b8;
       --fail: #f6c8c0;
+      --info: #cce4f5;
     }
     * { box-sizing: border-box; }
     body {
@@ -380,56 +451,88 @@ INDEX_HTML = """<!doctype html>
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 18px;
-      padding: 18px;
+      padding: 20px;
       box-shadow: 0 8px 24px rgba(50, 32, 18, 0.08);
       backdrop-filter: blur(6px);
     }
-    h1 { margin: 0 0 10px; font-size: 34px; }
-    h3 { margin: 18px 0 10px; font-size: 16px; }
-    p { color: var(--muted); line-height: 1.65; margin: 0 0 12px; }
-    .row, .toolbar { display: flex; gap: 10px; flex-wrap: wrap; }
-    .toolbar { margin-bottom: 12px; }
-    input[type="text"] {
-      width: 100%;
-      padding: 14px 16px;
-      border-radius: 12px;
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h3 { margin: 18px 0 10px; font-size: 15px; }
+    p { color: var(--muted); line-height: 1.65; margin: 0 0 12px; font-size: 14px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    input[type="text"], input[type="number"] {
+      padding: 9px 13px;
+      border-radius: 10px;
       border: 1px solid var(--line);
       background: #fffdf9;
-      font-size: 15px;
+      font-size: 14px;
+      color: var(--ink);
     }
+    input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: var(--accent2);
+    }
+    .url-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .url-row input[type="text"] { flex: 1; padding: 13px 15px; font-size: 15px; border-radius: 12px; }
+    .outdir-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .outdir-row label { color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .outdir-row input[type="text"] { flex: 1; font-size: 13px; }
+    .opts-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+    .kf-panel {
+      margin-top: 8px;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.03);
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+    .kf-panel label { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .kf-panel input[type="number"] { width: 72px; }
+    .kf-panel .hint { font-size: 11px; color: #999; }
+    .chk-label { display: flex; align-items: center; gap: 7px; cursor: pointer; color: var(--muted); font-size: 14px; }
+    .chk-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
     button {
       border: 0;
       border-radius: 12px;
-      padding: 12px 16px;
+      padding: 11px 20px;
       background: var(--accent);
       color: white;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
+      font-size: 14px;
     }
     button.secondary { background: var(--accent2); }
+    button:disabled { opacity: 0.45; cursor: default; }
     .jobs { max-height: 72vh; overflow: auto; }
     .job {
-      padding: 12px;
+      padding: 11px 13px;
       border-radius: 12px;
       border: 1px solid var(--line);
       background: #fffdf9;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       cursor: pointer;
+      transition: background 0.15s;
     }
+    .job:hover { background: #fff7ee; }
     .job.active { border-color: var(--accent); background: #fff1e8; }
-    .job-url { font-weight: 600; word-break: break-word; line-height: 1.4; }
+    .job-url { font-weight: 600; word-break: break-word; line-height: 1.4; font-size: 13px; }
+    .job-meta { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
     .status {
       display: inline-block;
-      padding: 4px 8px;
+      padding: 3px 9px;
       border-radius: 999px;
       font-size: 12px;
+      font-weight: 500;
       background: #efe3d6;
       color: var(--ink);
-      margin-top: 8px;
     }
     .status.completed { background: var(--ok); }
     .status.completed_with_warnings { background: var(--warn); }
-    .status.failed { background: var(--fail); }
+    .status.failed { background: var(--fail); color: #7a1010; }
+    .status.running { background: var(--info); }
     .mono {
       font-family: Consolas, "Courier New", monospace;
       font-size: 13px;
@@ -448,19 +551,36 @@ INDEX_HTML = """<!doctype html>
       text-decoration: none;
       margin-bottom: 8px;
       line-height: 1.4;
+      font-size: 14px;
     }
     .files a strong { color: var(--ink); }
-    .muted { color: var(--muted); }
-    .kv { margin: 8px 0; line-height: 1.55; }
-    .summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .mini {
+    .muted { color: var(--muted); font-size: 14px; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .info-box {
       border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: 12px;
+      padding: 12px 14px;
       background: #fffdf9;
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--muted);
+    }
+    .info-box strong { color: var(--ink); display: block; margin-bottom: 4px; }
+    .kf-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .kf-gallery a img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      display: block;
+      background: #111;
     }
     @media (max-width: 980px) {
-      .hero, .grid, .summary { grid-template-columns: 1fr; }
+      .hero, .grid, .info-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -469,31 +589,64 @@ INDEX_HTML = """<!doctype html>
     <div class="hero">
       <div class="card">
         <h1>YouTube Briefing</h1>
-        <p>输入一个 YouTube 链接，自动生成高画质视频、英文原字幕、AI 中文字幕和中文大纲。页面会实时显示日志，完成后可以直接打开目录或点开核心结果文件。</p>
-        <div class="row">
+        <p>输入 YouTube 链接，自动生成视频、AI 中文字幕、中文大纲和关键帧截图。多任务加入队列依次执行。</p>
+
+        <div class="url-row">
           <input id="urlInput" type="text" placeholder="https://www.youtube.com/watch?v=..." />
-          <button id="startBtn">开始处理</button>
+          <button id="startBtn">加入队列</button>
         </div>
-        <div style="margin-top:10px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--muted)">
-            <input type="checkbox" id="skipVideoChk" style="width:16px;height:16px;cursor:pointer">
-            仅字幕和大纲，跳过视频下载
+
+        <div class="outdir-row">
+          <label for="outputDirInput">输出目录：</label>
+          <input id="outputDirInput" type="text" value="D:\\YouTubeBriefings" placeholder="D:\\YouTubeBriefings" />
+        </div>
+
+        <div class="opts-row">
+          <label class="chk-label">
+            <input type="checkbox" id="skipVideoChk">
+            跳过视频下载（仅字幕和大纲）
+          </label>
+        </div>
+
+        <div class="kf-panel" id="kfPanel">
+          <label class="chk-label" style="margin-right:2px">
+            <input type="checkbox" id="extractKfChk" checked>
+            提取关键帧
+          </label>
+          <label>
+            场景阈值
+            <input type="number" id="sceneThresholdInput" value="0.04" min="0.01" max="1.0" step="0.01">
+            <span class="hint">越小帧越多</span>
+          </label>
+          <label>
+            最小间隔
+            <input type="number" id="minIntervalInput" value="10" min="1" max="300" step="1">
+            <span class="hint">秒，默认 10</span>
           </label>
         </div>
       </div>
+
       <div class="card">
-        <div class="summary">
-          <div class="mini">
-            <div><strong>输出目录</strong></div>
-            <div class="muted">D:\\YouTubeBriefings</div>
+        <div class="info-grid">
+          <div class="info-box">
+            <strong>核心产物</strong>
+            <div>· 视频（best MP4）</div>
+            <div>· 英文原始字幕</div>
+            <div>· AI 中文字幕</div>
+            <div>· 中文大纲</div>
+            <div>· 关键帧截图</div>
           </div>
-          <div class="mini">
-            <div><strong>核心产物</strong></div>
-            <div class="muted">视频、AI 中文字幕、中文大纲</div>
+          <div class="info-box">
+            <strong>队列规则</strong>
+            <div>· 多任务依次执行</div>
+            <div>· 等待时显示 #N</div>
+            <div>· 提交后自动跳转</div>
+            <div>· 每 2 秒自动刷新</div>
           </div>
         </div>
       </div>
     </div>
+
     <div class="grid">
       <div class="card jobs">
         <div class="toolbar">
@@ -508,6 +661,8 @@ INDEX_HTML = """<!doctype html>
         <div id="jobMeta" class="muted">还没有选择任务。</div>
         <h3>核心结果</h3>
         <div id="featuredFileList" class="files muted">完成后会优先显示视频、AI 中文字幕和中文大纲。</div>
+        <h3>关键帧 <span id="kfCountLabel" class="muted"></span></h3>
+        <div id="kfGallery" class="muted">完成后显示关键帧缩略图。</div>
         <h3>实时日志</h3>
         <div id="logBox" class="mono"></div>
         <h3>全部输出</h3>
@@ -515,6 +670,7 @@ INDEX_HTML = """<!doctype html>
       </div>
     </div>
   </div>
+
   <script>
     let selectedJobId = null;
     let pollTimer = null;
@@ -524,12 +680,12 @@ INDEX_HTML = """<!doctype html>
       return await res.json();
     }
 
-    function formatStatus(status) {
+    function formatStatus(status, queuePosition) {
       if (status === 'completed_with_warnings') return '已完成（有降级）';
       if (status === 'completed') return '已完成';
       if (status === 'failed') return '失败';
       if (status === 'running') return '运行中';
-      if (status === 'queued') return '排队中';
+      if (status === 'queued') return queuePosition ? `排队中 #${queuePosition}` : '排队中';
       return status;
     }
 
@@ -561,10 +717,13 @@ INDEX_HTML = """<!doctype html>
       for (const job of data.jobs) {
         const el = document.createElement('div');
         el.className = 'job' + (job.id === selectedJobId ? ' active' : '');
+        const statusText = formatStatus(job.status, job.queue_position);
         el.innerHTML = `
           <div class="job-url">${job.url}</div>
-          <div class="status ${job.status}">${formatStatus(job.status)}</div>
-          <div class="muted">${job.id}</div>
+          <div class="job-meta">
+            <span class="status ${job.status}">${statusText}</span>
+            <span class="muted" style="font-size:11px">${job.id}</span>
+          </div>
         `;
         el.onclick = () => selectJob(job.id);
         list.appendChild(el);
@@ -576,16 +735,18 @@ INDEX_HTML = """<!doctype html>
       await loadJobs();
       await loadJobDetail();
       if (pollTimer) clearInterval(pollTimer);
-      pollTimer = setInterval(loadJobDetail, 2000);
+      pollTimer = setInterval(async () => { await loadJobs(); await loadJobDetail(); }, 2000);
     }
 
     async function loadJobDetail() {
       if (!selectedJobId) return;
       const job = await fetchJson(`/api/jobs/${selectedJobId}`);
+      const outputPath = job.job_dir || job.output_dir || '尚未生成';
       document.getElementById('jobMeta').innerHTML = `
-        <div><strong>任务状态：</strong>${formatStatus(job.status)}</div>
-        <div><strong>视频链接：</strong>${job.url}</div>
-        <div><strong>输出目录：</strong>${job.job_dir || '尚未生成'}</div>
+        <div><strong>状态：</strong>${formatStatus(job.status, null)}</div>
+        <div><strong>链接：</strong><span style="word-break:break-all">${job.url}</span></div>
+        <div><strong>输出目录：</strong>${outputPath}</div>
+        <div><strong>关键帧参数：</strong>阈值 ${job.scene_threshold || 0.04}，间隔 ${job.min_interval || 10} 秒</div>
         <div><strong>开始时间：</strong>${formatTime(job.started_at)}</div>
         <div><strong>结束时间：</strong>${formatTime(job.finished_at)}</div>
         <div><strong>耗时：</strong>${formatDuration(job.started_at, job.finished_at, job.status)}</div>
@@ -619,6 +780,26 @@ INDEX_HTML = """<!doctype html>
         }).join('');
       }
 
+      const kfThumbs = (job.result && job.result.keyframe_thumbnails) || [];
+      const kfCount = (job.result && job.result.keyframes_count) || 0;
+      const kfGallery = document.getElementById('kfGallery');
+      const kfCountLabel = document.getElementById('kfCountLabel');
+      if (kfThumbs.length) {
+        kfCountLabel.textContent = `(${kfCount} 帧)`;
+        kfGallery.className = 'kf-gallery';
+        kfGallery.innerHTML = kfThumbs.map(frame => {
+          const href = '/file?path=' + encodeURIComponent(frame.path);
+          return `<a href="${href}" target="_blank"><img src="${href}" loading="lazy" title="${frame.name}"></a>`;
+        }).join('');
+      } else {
+        kfCountLabel.textContent = '';
+        kfGallery.className = 'muted';
+        kfGallery.textContent =
+          job.status === 'completed' || job.status === 'completed_with_warnings'
+            ? '没有关键帧（跳过或 ffmpeg 不可用）。'
+            : '完成后显示关键帧缩略图。';
+      }
+
       if (!files.length) {
         fileList.textContent =
           job.status === 'completed' || job.status === 'completed_with_warnings'
@@ -637,14 +818,50 @@ INDEX_HTML = """<!doctype html>
       }
     }
 
+    // Keyframe option interactions
+    function syncKfPanelState() {
+      const skipVideo = document.getElementById('skipVideoChk').checked;
+      const extractKf = document.getElementById('extractKfChk');
+      const kfPanel = document.getElementById('kfPanel');
+      const threshInput = document.getElementById('sceneThresholdInput');
+      const intervalInput = document.getElementById('minIntervalInput');
+      if (skipVideo) {
+        extractKf.checked = false;
+        extractKf.disabled = true;
+        threshInput.disabled = true;
+        intervalInput.disabled = true;
+        kfPanel.style.opacity = '0.4';
+      } else {
+        extractKf.disabled = false;
+        const kfEnabled = extractKf.checked;
+        threshInput.disabled = !kfEnabled;
+        intervalInput.disabled = !kfEnabled;
+        kfPanel.style.opacity = kfEnabled ? '1' : '0.6';
+      }
+    }
+
+    document.getElementById('skipVideoChk').onchange = syncKfPanelState;
+    document.getElementById('extractKfChk').onchange = syncKfPanelState;
+
     document.getElementById('startBtn').onclick = async () => {
       const url = document.getElementById('urlInput').value.trim();
       if (!url) return;
+      const outputDir = document.getElementById('outputDirInput').value.trim();
       const skipVideo = document.getElementById('skipVideoChk').checked;
+      const extractKf = document.getElementById('extractKfChk').checked;
+      const sceneThreshold = parseFloat(document.getElementById('sceneThresholdInput').value) || 0.04;
+      const minInterval = parseFloat(document.getElementById('minIntervalInput').value) || 10.0;
       const result = await fetchJson('/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, skip_video: skipVideo })
+        body: JSON.stringify({
+          url,
+          output_dir: outputDir,
+          skip_video: skipVideo,
+          extract_keyframes: extractKf,
+          scene_threshold: sceneThreshold,
+          min_interval: minInterval,
+        })
       });
       if (result.id) {
         document.getElementById('urlInput').value = '';
@@ -652,12 +869,19 @@ INDEX_HTML = """<!doctype html>
       }
     };
 
+    document.getElementById('urlInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('startBtn').click();
+    });
+
     document.getElementById('refreshJobsBtn').onclick = loadJobs;
     loadJobs();
   </script>
 </body>
 </html>
 """
+
+
+threading.Thread(target=queue_worker, daemon=True).start()
 
 
 def main() -> int:

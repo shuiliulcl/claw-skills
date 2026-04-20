@@ -87,6 +87,24 @@ python unreal_video_watch.py --brief-top 2
 | `transcript.en.txt` | Plain English transcript |
 | `transcript.zh.txt` | Plain Chinese transcript |
 | `outline.zh.md` | Structured Chinese outline with section summaries |
+| `keyframes/*.jpg` | Extracted keyframes (scene-detected + interval supplement) |
+| `keyframes/timestamps.txt` | Frame filename → seconds → MM:SS mapping |
+
+## Keyframe extraction
+
+Runs automatically after video download when ffmpeg is available. Three-stage pipeline:
+
+1. **Scene detection** (primary): `scene > threshold` filter with minimum interval between frames. Default threshold `0.04` (good for dark PPT/code slides), minimum interval `10s`.
+2. **Interval supplement**: any gap longer than 120s gets 1 frame per 60s. Covers demo sections (VS Code, UE Editor) where scene scores stay low.
+3. **Perceptual dedup** (post-processing): computes a 64-bit dHash for every frame via ffmpeg thumbnail scaling (no extra Python deps). Frames with Hamming distance ≤ 8 within a 120s sliding window are deleted. Eliminates near-duplicates caused by looping animations on otherwise static slides (e.g. rotating 3D charts). Typical reduction: ~30% of scene-detected frames removed.
+
+Output naming:
+- `frame_XXXX.jpg` — scene-detected frames (numbered sequentially, after dedup)
+- `demo_XXXX.jpg` — interval supplement frames for long gaps
+
+Disable with `--no-extract-keyframes`. Tune with `--scene-threshold` (lower = more frames) and `--min-interval` (default 10s, raise for fast-cutting game demos).
+
+After extraction, use Claude Code's vision analysis on the keyframe directory to generate a comprehensive `summary.md` with embedded images, code examples, and an API quick-reference — this step requires a vision model and is done as a separate Claude Code task.
 
 ## AI pipeline
 

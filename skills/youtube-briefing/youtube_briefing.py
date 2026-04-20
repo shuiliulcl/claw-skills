@@ -89,6 +89,24 @@ def parse_args() -> argparse.Namespace:
         help="Fail the whole job when video download fails. Default: continue with subtitles and outline.",
     )
     parser.add_argument(
+        "--extract-keyframes",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Extract keyframes from the video using scene detection after download. Requires ffmpeg. Default: enabled",
+    )
+    parser.add_argument(
+        "--scene-threshold",
+        type=float,
+        default=0.04,
+        help="Scene detection threshold for keyframe extraction (0.0–1.0). Lower = more frames. Default: 0.04",
+    )
+    parser.add_argument(
+        "--min-interval",
+        type=float,
+        default=10.0,
+        help="Minimum seconds between scene-detected keyframes. Higher = fewer frames in rapid-change sections. Default: 10",
+    )
+    parser.add_argument(
         "--ai-polish",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -157,6 +175,14 @@ def main() -> int:
             strict=args.strict_video,
         )
         print(f"Step 2/5 done in {time.perf_counter() - step_started:.1f}s", file=sys.stderr)
+
+    keyframes_dir: Path | None = None
+    if video_path is not None and args.extract_keyframes:
+        kf_started = time.perf_counter()
+        keyframes_dir = extract_keyframes(video_path, job_dir, scene_threshold=args.scene_threshold, min_interval=args.min_interval)
+        print(f"Keyframe extraction done in {time.perf_counter() - kf_started:.1f}s", file=sys.stderr)
+    elif args.extract_keyframes and video_path is None:
+        print("Keyframe extraction skipped: no video was downloaded.", file=sys.stderr)
 
     step_started = time.perf_counter()
     english_srt = ensure_english_srt(args.url, job_dir)
@@ -262,6 +288,9 @@ def main() -> int:
     print(f"Canonical English subtitles: {canonical_english_srt.name}")
     print(f"Canonical AI Chinese subtitles: {canonical_chinese_srt.name}")
     print("Outline: outline.zh.md")
+    if keyframes_dir is not None:
+        kf_count = len(list(keyframes_dir.glob("*.jpg")))
+        print(f"Keyframes: keyframes/ ({kf_count} frames, see keyframes/timestamps.txt)")
     print(f"Total time: {time.perf_counter() - total_started:.1f}s", file=sys.stderr)
     return 0
 
@@ -1385,6 +1414,154 @@ def is_youtube_403_error(message: str) -> bool:
 
 def is_ssl_certificate_error(exc: Exception) -> bool:
     return "CERTIFICATE_VERIFY_FAILED" in str(exc) or "SSLCertVerificationError" in str(exc)
+
+
+def _dhash_frame(ffmpeg_path: str, jpg_path: Path, size: int = 8) -> int | None:
+    """64-bit difference hash via ffmpeg thumbnail scaling. No external Python deps."""
+    cmd = [
+        ffmpeg_path, "-i", str(jpg_path),
+        "-vf", f"scale={size + 1}:{size},format=gray",
+        "-f", "rawvideo", "-pix_fmt", "gray", "-an", "pipe:1",
+    ]
+    result = subprocess.run(cmd, capture_output=True)
+    expected = (size + 1) * size
+    if result.returncode != 0 or len(result.stdout) != expected:
+        return None
+    pixels = result.stdout
+    h = 0
+    for row in range(size):
+        for col in range(size):
+            h = (h << 1) | (1 if pixels[row * (size + 1) + col] > pixels[row * (size + 1) + col + 1] else 0)
+    return h
+
+
+def _dedup_keyframes(
+    ffmpeg_path: str,
+    keyframes_dir: Path,
+    timestamps: list[tuple[str, float]],
+    max_distance: int = 8,
+    time_window: float = 120.0,
+) -> list[tuple[str, float]]:
+    """Remove near-duplicate frames that appear within time_window seconds of each other."""
+    hashes: list[int] = []
+    keep: list[bool] = [True] * len(timestamps)
+    for i, (fname, t_i) in enumerate(timestamps):
+        h = _dhash_frame(ffmpeg_path, keyframes_dir / fname)
+        hashes.append(-1 if h is None else h)
+        if hashes[i] == -1:
+            continue
+        for j in range(i - 1, -1, -1):
+            if t_i - timestamps[j][1] > time_window:
+                break
+            if not keep[j] or hashes[j] == -1:
+                continue
+            if bin(hashes[i] ^ hashes[j]).count("1") <= max_distance:
+                keep[i] = False
+                break
+    removed = sum(1 for k in keep if not k)
+    if removed:
+        print(f"Keyframe dedup: removed {removed} near-duplicate frame(s) (dHash ≤{max_distance}, window {time_window:.0f}s).", file=sys.stderr)
+        for i, (fname, _) in enumerate(timestamps):
+            if not keep[i]:
+                p = keyframes_dir / fname
+                if p.exists():
+                    p.unlink()
+    return [ts for ts, k in zip(timestamps, keep) if k]
+
+
+def extract_keyframes(
+    video_path: Path,
+    job_dir: Path,
+    scene_threshold: float = 0.04,
+    min_interval: float = 5.0,
+    gap_supplement_interval: float = 60.0,
+    gap_threshold: float = 120.0,
+) -> Path | None:
+    """Extract keyframes using scene detection (primary) + fixed-interval supplement for long gaps."""
+    ffmpeg_path = resolve_ffmpeg_path()
+    if ffmpeg_path is None:
+        print("Keyframe extraction skipped: ffmpeg not found.", file=sys.stderr)
+        return None
+
+    keyframes_dir = job_dir / "keyframes"
+    keyframes_dir.mkdir(exist_ok=True)
+
+    # Scene detection pass — select frames where scene score > threshold, min MIN_INTERVAL apart
+    vf = (
+        f"select='gt(scene,{scene_threshold})"
+        f"*(isnan(prev_selected_t)+gte(t-prev_selected_t,{min_interval:.1f}))',"
+        "showinfo"
+    )
+    out_pattern = str(keyframes_dir / "frame_%04d.jpg")
+    cmd = [ffmpeg_path, "-i", str(video_path), "-vf", vf, "-vsync", "vfr", "-q:v", "2", out_pattern]
+    print(
+        f"Keyframe extraction: scene detection (threshold={scene_threshold}, min_interval={min_interval:.0f}s)...",
+        file=sys.stderr,
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    # Parse pts_time from showinfo lines — each hit corresponds to one output frame in sequence
+    scene_timestamps: list[tuple[str, float]] = []
+    for line in result.stderr.splitlines():
+        m = re.search(r"\[Parsed_showinfo[^\]]*\].*?pts_time:([\d.]+)", line)
+        if m:
+            frame_num = len(scene_timestamps) + 1
+            scene_timestamps.append((f"frame_{frame_num:04d}.jpg", float(m.group(1))))
+
+    print(f"Keyframe extraction: {len(scene_timestamps)} frames from scene detection.", file=sys.stderr)
+
+    # Supplement long gaps (> gap_threshold seconds) with fixed-interval frames
+    supplement_timestamps: list[tuple[str, float]] = []
+    if scene_timestamps:
+        gaps: list[tuple[float, float]] = []
+        if scene_timestamps[0][1] > gap_threshold:
+            gaps.append((0.0, scene_timestamps[0][1]))
+        for i in range(len(scene_timestamps) - 1):
+            gap_size = scene_timestamps[i + 1][1] - scene_timestamps[i][1]
+            if gap_size > gap_threshold:
+                gaps.append((scene_timestamps[i][1], scene_timestamps[i + 1][1]))
+
+        if gaps:
+            print(
+                f"Keyframe extraction: supplementing {len(gaps)} gap(s) >{gap_threshold:.0f}s "
+                f"with 1 frame/{gap_supplement_interval:.0f}s...",
+                file=sys.stderr,
+            )
+        demo_num = 0
+        for gap_start, gap_end in gaps:
+            t = gap_start + gap_supplement_interval
+            while t < gap_end - gap_supplement_interval / 2:
+                demo_num += 1
+                fname = f"demo_{demo_num:04d}.jpg"
+                out_path = str(keyframes_dir / fname)
+                single_cmd = [
+                    ffmpeg_path, "-ss", f"{t:.3f}", "-i", str(video_path),
+                    "-vframes", "1", "-q:v", "2", "-y", out_path,
+                ]
+                subprocess.run(single_cmd, capture_output=True)
+                supplement_timestamps.append((fname, t))
+                t += gap_supplement_interval
+
+    # Dedup: remove near-duplicate frames within a 120s sliding window
+    all_timestamps = sorted(scene_timestamps + supplement_timestamps, key=lambda x: x[1])
+    all_timestamps = _dedup_keyframes(ffmpeg_path, keyframes_dir, all_timestamps)
+
+    # Write timestamps.txt sorted by time
+    ts_lines = [
+        f"{fname:<24} {pts:10.3f}s  {int(pts)//60:02d}:{int(pts)%60:02d}"
+        for fname, pts in all_timestamps
+    ]
+    (keyframes_dir / "timestamps.txt").write_text("\n".join(ts_lines) + "\n", encoding="utf-8")
+
+    supp_after = sum(1 for fname, _ in all_timestamps if fname.startswith("demo_"))
+    scene_after = len(all_timestamps) - supp_after
+    print(
+        f"Keyframe extraction: {len(all_timestamps)} frames total "
+        f"({scene_after} scene-detected + {supp_after} interval supplement). "
+        "See keyframes/timestamps.txt",
+        file=sys.stderr,
+    )
+    return keyframes_dir
 
 
 if __name__ == "__main__":
