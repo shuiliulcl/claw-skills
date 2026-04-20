@@ -63,6 +63,8 @@ def remove_reaction(message_id: str, reaction_id: str):
     request = DeleteMessageReactionRequest.builder().message_id(message_id).reaction_id(reaction_id).build()
     resp = client.im.v1.message_reaction.delete(request)
     if not resp.success():
+        if str(resp.code) == "231003":
+            return
         print(f"[WARN] 移除表情失败: {resp.code} {resp.msg}")
 
 
