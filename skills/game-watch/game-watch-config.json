@@ -5,7 +5,7 @@
     "enabled": true,
     "country": "cn",
     "device": "iphone",
-    "top_n": 30,
+    "top_n": 100,
     "brands": [
       { "id": "grossing", "genre": "36",   "label": "畅销总榜" },
       { "id": "grossing", "genre": "6014", "label": "畅销游戏榜" }
