@@ -14,6 +14,10 @@ if (-not (Test-Path $ConfigFile)) {
     exit 1
 }
 
+chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $config = Get-Content $ConfigFile -Encoding UTF8 | ConvertFrom-Json
 $p4User  = $config.self_watch.p4_user
 $repos   = $config.repos
