@@ -262,11 +262,13 @@ def fetch_video_metadata(
         except subprocess.TimeoutExpired:
             print(f"[watch] metadata timeout after {yt_dlp_timeout_seconds}s: {url}", flush=True)
             continue
-        if result.returncode == 0:
+        if result.stdout.strip():
             try:
                 return json.loads(result.stdout)
             except json.JSONDecodeError:
-                return None
+                pass
+        if result.returncode != 0:
+            continue
     return None
 
 
