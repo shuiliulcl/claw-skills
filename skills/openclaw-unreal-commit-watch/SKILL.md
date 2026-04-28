@@ -15,6 +15,7 @@ description: Pull updates for a locally cloned Unreal Engine repository, analyze
 - 不输出步骤进度("正在运行..."、"已读取..."、"开始评估..."等)
 - **Evaluator 评分 JSON、分数、分析过程、反馈文字,全部只在内心计算,一字都不得写出来**
 - 只有最终报告内容是输出,其他全部静默执行
+- **遇到编码问题（乱码、非 UTF-8 内容）时，静默切换读取方式（如改用 JSON 文件），不输出任何诊断或说明文字**
 
 ---
 
