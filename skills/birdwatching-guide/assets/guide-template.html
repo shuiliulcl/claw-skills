@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!--
+  观鸟攻略离线模板 —— 填充说明（组装时请遵守）：
+  1. 替换所有 {{...}} 占位符。不要在最终文件里残留任何 {{ }}。
+  2. 可重复区块（鸟种卡片、时间线条目、热点条目、天气日）：复制 <!-- REPEAT --> 注释之间的那段元素，按数据条数生成多份。
+  3. 鸟种卡片的状态徽章：个人 CSV 里没有的种用 class="badge-new"（文案"可加新种"）；已有的用 class="badge-owned"（文案"已解锁"）；没有 CSV 时省略徽章。
+  4. 增强数据源（小红书/记录中心）缺失时，把对应 section 的内容替换成 <p class="missing">该板块数据本次未接入</p>，不要删整个 section、也不要留空白。
+  5. 本文件必须保持自包含：CSS 已内联，禁止引入任何外链 JS/CSS/字体/图片（保证离线可看）。
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>观鸟攻略 · {{PLACE}}</title>
+<style>
+  :root{--green:#4a7c59;--green-d:#2f5233;--cream:#f5f1e6;--card:#fff;--ink:#2b2b2b;--muted:#7a7a6e;--accent:#e08a3c;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--cream);color:var(--ink);line-height:1.6;padding:0 0 48px;}
+  header{background:var(--green-d);color:#fff;padding:32px 24px;text-align:center;}
+  header h1{font-size:26px;letter-spacing:1px;}
+  header .meta{margin-top:8px;opacity:.85;font-size:14px;}
+  .wrap{max-width:860px;margin:0 auto;padding:0 16px;}
+  section{background:var(--card);border-radius:14px;padding:20px 22px;margin-top:20px;box-shadow:0 2px 10px rgba(0,0,0,.05);}
+  h2{color:var(--green-d);font-size:19px;margin-bottom:14px;display:flex;align-items:center;gap:8px;border-bottom:2px solid var(--cream);padding-bottom:8px;}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:12px;}
+  /* 鸟种卡片 */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .card{border:1px solid #ececdf;border-radius:10px;padding:12px 14px;background:#fcfbf6;}
+  .card .name{font-weight:600;color:var(--green-d);font-size:15px;}
+  .card .sci{color:var(--muted);font-size:12px;font-style:italic;}
+  .card .where{font-size:13px;margin-top:6px;}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin-top:8px;}
+  .badge-new{background:#e7f3e9;color:var(--green-d);}
+  .badge-owned{background:#eee;color:var(--muted);}
+  /* 时间线 */
+  .timeline{list-style:none;border-left:2px solid var(--green);margin-left:8px;}
+  .timeline li{position:relative;padding:0 0 16px 20px;}
+  .timeline li::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--green);}
+  .timeline .when{font-weight:600;color:var(--green-d);font-size:14px;}
+  /* 热点/路线 */
+  .hotspot{padding:10px 0;border-bottom:1px dashed #e3e3d5;}
+  .hotspot:last-child{border-bottom:none;}
+  .hotspot .rank{display:inline-block;background:var(--green);color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:12px;margin-right:8px;}
+  .hotspot .sp{color:var(--accent);font-size:13px;}
+  /* 天气 */
+  .weather{display:flex;gap:10px;flex-wrap:wrap;}
+  .wday{flex:1;min-width:140px;border:1px solid #ececdf;border-radius:10px;padding:12px;background:#fcfbf6;}
+  .wday .d{font-weight:600;color:var(--green-d);}
+  .wday .t{font-size:18px;margin:4px 0;}
+  .wday .hint{font-size:12px;color:var(--accent);margin-top:6px;}
+  .missing{color:var(--muted);font-style:italic;padding:8px 0;}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🦅 {{PLACE}} 观鸟攻略</h1>
+  <div class="meta">出行日期：{{DATES}} ｜ 生成于 {{GEN_DATE}}</div>
+</header>
+<div class="wrap">
+
+  <!-- ===== 天气与最佳时段 ===== -->
+  <section>
+    <h2>☀️ 天气与最佳时段</h2>
+    <div class="sub">数据来源：和风天气 · 清晨日出后与傍晚日落前为观鸟黄金时段</div>
+    <div class="weather">
+      <!-- REPEAT:weather-day -->
+      <div class="wday">
+        <div class="d">{{W_DATE}}</div>
+        <div class="t">{{W_TEXT}} {{W_TEMP_MIN}}~{{W_TEMP_MAX}}°C</div>
+        <div>{{W_WIND_DIR}} {{W_WIND_SCALE}}级 ｜ 降水{{W_PRECIP}}mm</div>
+        <div>日出 {{W_SUNRISE}} ／ 日落 {{W_SUNSET}}</div>
+        <div class="hint">{{W_HINT}}</div>
+      </div>
+      <!-- /REPEAT:weather-day -->
+    </div>
+  </section>
+
+  <!-- ===== 必看 / 高光鸟种 ===== -->
+  <section>
+    <h2>⭐ 必看鸟种</h2>
+    <div class="sub">数据来源：eBird 近期罕见/高光观测 · 徽章标注是否已在你的记录中</div>
+    <div class="cards">
+      <!-- REPEAT:bird-card -->
+      <div class="card">
+        <div class="name">{{B_NAME}}</div>
+        <div class="sci">{{B_SCI}}</div>
+        <div class="where">📍 {{B_LOC}}｜🕒 {{B_DATE}}</div>
+        <span class="badge {{B_BADGE_CLASS}}">{{B_BADGE_TEXT}}</span>
+      </div>
+      <!-- /REPEAT:bird-card -->
+    </div>
+  </section>
+
+  <!-- ===== 鸟况时间线 ===== -->
+  <section>
+    <h2>📈 近期鸟况时间线</h2>
+    <div class="sub">数据来源：eBird 近期观测 + 小红书情报</div>
+    <ul class="timeline">
+      <!-- REPEAT:timeline-item -->
+      <li><span class="when">{{T_WHEN}}</span><div>{{T_TEXT}}</div></li>
+      <!-- /REPEAT:timeline-item -->
+    </ul>
+  </section>
+
+  <!-- ===== 推荐热点 / 路线 ===== -->
+  <section>
+    <h2>🗺️ 推荐热点与路线</h2>
+    <div class="sub">数据来源：eBird 热点（按历史累计种数排序）</div>
+    <!-- REPEAT:hotspot -->
+    <div class="hotspot">
+      <span class="rank">{{H_RANK}}</span><strong>{{H_NAME}}</strong>
+      <span class="sp">· 累计 {{H_SPECIES}} 种</span>
+      <div class="sub">{{H_NOTE}}</div>
+    </div>
+    <!-- /REPEAT:hotspot -->
+  </section>
+
+  <!-- ===== 出行提醒 ===== -->
+  <section>
+    <h2>📌 出行提醒</h2>
+    <div class="sub">数据来源：小红书 / 观鸟记录中心（增强数据源，缺失时此处会标注）</div>
+    {{REMINDERS}}
+  </section>
+
+  <footer>本攻略由 birdwatching-guide skill 生成 · 数据综合 eBird / 和风天气 / 小红书 / 中国观鸟记录中心 · 仅供参考</footer>
+</div>
+</body>
+</html>

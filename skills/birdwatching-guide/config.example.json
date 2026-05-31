@@ -1,0 +1,33 @@
+{
+  "_说明": "复制到 ~/.birdwatch/config.json 并填写。所有 key 集中在此，多机部署只需带这一份。",
+
+  "ebird_api_key": "在 https://ebird.org/api/keygen 申请（免费）",
+
+  "qweather": {
+    "_说明": "和风天气 JWT 认证，详见 birdwatching-guide/references/qweather-api.md",
+    "api_host": "你的专属host，形如 abcd1234.re.qweatherapi.com",
+    "sub": "项目ID",
+    "kid": "凭证ID",
+    "private_key_path": "~/.qweather/ed25519-private.pem"
+  },
+
+  "birdreport": {
+    "_说明": "中国观鸟记录中心（个人自用）。token 由 grab_token.py 自动写入；member_id 为你的会员id",
+    "token": "",
+    "member_id": ""
+  },
+
+  "obsidian": {
+    "_说明": "可选：把人生鸟单/出行/攻略写成 Obsidian 双链笔记。默认关闭",
+    "enabled": false,
+    "vault_path": "~/ObsidianVault"
+  },
+
+  "ccconnect": {
+    "_说明": "可选：飞书 bot 前端（cc-connect）。默认关闭；启用后 token 刷新会重建它",
+    "enabled": false,
+    "run_js": "",
+    "cwd": "",
+    "pm2_name": "cc-connect"
+  }
+}
