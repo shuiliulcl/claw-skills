@@ -28,7 +28,15 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 
 **第二步:读取最新报告文件，并验证日期**
 
-在 `C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\output\` 下找最新的 `.md` 文件(按 `LastWriteTime` 降序取第一个)。
+在 `C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\output\` 下找最新的 `.md` 文件。
+**排序规则：按文件名中的时间戳（`yyyyMMdd_HHmmss` 格式）降序取第一个，不得用 `LastWriteTime`**（因为文件系统写入时间可能因 gc 等操作晚于报告内容日期，导致取到旧文件）。
+
+用 PowerShell 示例：
+```powershell
+Get-ChildItem 'C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\output\*.md' |
+  Sort-Object { if ($_.BaseName -match '(\d{8})_(\d{6})$') { "$($Matches[1])$($Matches[2])" } else { '' } } -Descending |
+  Select-Object -First 1
+```
 
 用 `Get-Content -Raw -Encoding UTF8` 读取,确保中文正确显示。
 
@@ -79,10 +87,16 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 
 > ⚠️ **脚本生成的摘要字段只是参考，不得原样输出。AI 必须在此步骤重写所有摘要。**
 
-**第五步:输出报告**
+**第五步:发送报告（飞书 markdown 消息）**
 
-- **通过** → 直接输出报告内容,无任何前缀后缀
-- **不通过** → 按以下精确格式输出(注意空行):
+用以下命令将报告内容通过飞书发送给半墙（支持加粗、标题等格式正确渲染）：
+
+```bash
+lark-cli im +messages-send --user-id ou_2b6334604d63123d4dc232d596e9d46d --markdown $'<报告内容>'
+```
+
+- **通过** → 直接发送报告内容，命令成功后本步骤完成，不再额外输出文字
+- **不通过** → 发送以下内容（注意空行）:
 
 ```
 ⚠️ 本报告未通过质量评估
@@ -95,6 +109,8 @@ powershell -ExecutionPolicy Bypass -File 'C:\Users\banqiang\.openclaw\skills\ope
 
 <完整报告内容>
 ```
+
+> ⚠️ 报告内容中的 `**加粗**`、`## 标题` 等 Markdown 语法通过 `--markdown` 标志会被飞书正确渲染，不要提前去除星号。
 
 ---
 
