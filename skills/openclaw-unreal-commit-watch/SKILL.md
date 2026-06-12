@@ -89,14 +89,18 @@ Get-ChildItem 'C:\Users\banqiang\.openclaw\skills\openclaw-unreal-commit-watch\o
 
 **第五步:发送报告（飞书 markdown 消息）**
 
-用以下命令将报告内容通过飞书发送给半墙（支持加粗、标题等格式正确渲染）：
+⚠️ **禁止将报告内容内联进 exec 命令字符串**（会导致换行变成字面 `\n`）。
 
-```bash
-lark-cli im +messages-send --user-id ou_2b6334604d63123d4dc232d596e9d46d --markdown $'<报告内容>'
+必须用 PowerShell 从文件读取变量后发送：
+
+```powershell
+$reportPath = '<第二步中读取的报告文件完整路径>'
+$content = Get-Content -Raw -Encoding UTF8 $reportPath
+lark-cli im +messages-send --user-id ou_2b6334604d63123d4dc232d596e9d46d --markdown $content
 ```
 
-- **通过** → 直接发送报告内容，命令成功后本步骤完成，不再额外输出文字
-- **不通过** → 发送以下内容（注意空行）:
+- **通过** → 发送报告内容，命令成功后本步骤完成，不再额外输出文字
+- **不通过** → 构造以下字符串写入临时文件后发送：
 
 ```
 ⚠️ 本报告未通过质量评估
