@@ -29,5 +29,25 @@
     "run_js": "",
     "cwd": "",
     "pm2_name": "cc-connect"
+  },
+
+  "home_base": {
+    "_说明": "默认出发点（大本营），用于目标推荐的距离/通勤打分。填 address 即可（脚本用高德地理编码出经纬度），或直接填 lng/lat",
+    "address": "如：上海市浦东新区XX路XX号",
+    "lng": "",
+    "lat": "",
+    "max_radius_km": 60
+  },
+
+  "amap": {
+    "_说明": "可选：高德地图 Web服务 key，用于真实驾车/公交时间+费用打分。无 key 时退化为直线距离粗估",
+    "key": ""
+  },
+
+  "xiaohongshu": {
+    "_说明": "可选：小红书鸟友情报增强源，经 MediaCrawler 抓公开笔记（需本人扫码登录）。默认关闭；启用见 references/xiaohongshu.md（注意 xhshow 必须 0.1.9）",
+    "enabled": false,
+    "mediacrawler_path": "",
+    "max_notes": 10
   }
 }

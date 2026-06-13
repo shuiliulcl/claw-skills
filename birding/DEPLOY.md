@@ -58,3 +58,15 @@
 - `birdwatching-guide/DEPLOY.md`、`references/`（各数据源接入、API 申请步骤）
 - `birdreport-logger/references/api.md`（birdreport 接口/字段/加密逆向记录）
 - 三个 skill 各自的 `SKILL.md`（工作流）
+
+## 6. birdwatching-guide 主要脚本（新设备直接可用）
+- `assemble_guide.py` — **一键出攻略**：`--name --lng --lat --locId` → 带路网地图的离线 HTML（稳拍降权榜/高光降级/高频时段/通勤/可选小红书），自带泄漏自检
+- `target_select.py` — 大本营→附近热点平衡推荐（可加新×丰富度×通勤）
+- `species_hotspots.py` — **菜鸟聚集地**：可加新种→报告最集中点位，含月份对齐+周边多区+lift特异性+缓存。**重查询，严格低频**（结果缓存到 `~/.birdwatch/species_points_cache.json`，505 不重试）
+- `hotspot_detail.py` — 点内路线：真实道路折线静态地图（`--map-out`）+ 高频出鸟时段
+- `xhs_search.py` — **小红书情报（可选，默认关）**：封装 MediaCrawler。需另装 MediaCrawler（不在本仓），见 `birdwatching-guide/references/xiaohongshu.md`，**⚠️ xhshow 必须锁 0.1.9**，否则签名崩
+
+## 7. 善待平台 / 合规红线
+- birdreport：`limit≤50`、505 不重试、月份用日期范围；`species_hotspots` 小批+缓存，绝不一次猛扫
+- 小红书：本人扫码登录、个人低频、遇验证码即放弃，不写绕过反爬代码；登录态(`browser_data/`)与 MediaCrawler 本体**不入仓**
+- 所有真实 key/token/坐标只在 `~/.birdwatch/config.json`（gitignore），代码与仓库零硬编码

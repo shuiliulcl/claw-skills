@@ -2,16 +2,40 @@
 
 **没有公开官方 API。** 小红书帖子提供"最新鸟况、出行/封控提醒、拍摄机位"这类社区情报，是 eBird/天气给不了的，但它是整个流程**最脆弱、合规风险最高**的一环。属于「增强数据源」——拿不到就跳过。
 
-## 主流方案：MediaCrawler
+## 接入方式：MediaCrawler（已封装为 `scripts/xhs_search.py`，默认关闭）
 
-开源项目，用 Playwright 模拟浏览器，降低逆向难度：
+开源项目，用 Playwright 模拟浏览器 + **你本人扫码登录**抓公开笔记：
 - 仓库：https://github.com/NanmiCoder/MediaCrawler
 
-典型用法（关键词搜索小红书笔记）：
+### 一次性安装（用独立 venv，别污染全局 playwright）
 ```bash
-python main.py --platform xhs --lt qrcode --type search
+git clone --depth 1 https://github.com/NanmiCoder/MediaCrawler.git
+cd MediaCrawler && python -m venv .venv
+./.venv/Scripts/python.exe -m pip install -r requirements.txt
+./.venv/Scripts/python.exe -m pip install "xhshow==0.1.9"   # ⚠️见下方版本坑
+./.venv/Scripts/python.exe -m playwright install chromium
 ```
-关键词在其配置文件里设置（如「<地点> 观鸟」「<地点> 鸟」）。首次运行需扫码登录，工具会缓存登录态。
+建议改 `config/base_config.py`：`ENABLE_GET_COMMENTS=False`（关评论更轻）、`CRAWLER_MAX_NOTES_COUNT=10`。
+
+### ⚠️ 关键版本坑（踩过）
+`requirements.txt` 写 `xhshow>=0.1.9`，pip 会装到 **0.2.0**，但 MediaCrawler 的签名补丁
+（`media_platform/xhs/playwright_sign.py` 的 `_patch_xhshow_a3_hash`）是按 0.1.x 写的——
+0.2.0 的 `build_payload_array` 多了个 `hex_md5_path` 参数导致 `TypeError: got multiple values for 'sign_state'`，
+**抓取直接崩**。**务必锁定 `xhshow==0.1.9`**。
+
+### 启用与调用
+在 `~/.birdwatch/config.json` 配 `xiaohongshu`：
+```json
+"xiaohongshu": { "enabled": true, "mediacrawler_path": "D:/AITool/MediaCrawler", "max_notes": 10 }
+```
+然后用封装脚本（自动跑 MediaCrawler + 解析 jsonl + 返回摘要）：
+```bash
+python scripts/xhs_search.py --keywords "<地点> 观鸟" [--location 滨江森林,滨森] [--top 8]
+python scripts/xhs_search.py --no-crawl --location 滨森   # 只解析上次抓取，不再请求平台
+```
+首次抓取会弹 Chromium 让你扫码（窗口可能被挡，Alt+Tab 找"Chromium"窗口）；登录态存在
+`MediaCrawler/browser_data/`，之后换关键词**免扫码**。`assemble_guide.py` 启用后会自动把最近
+一次抓取的笔记并入攻略「🔴 鸟友情报」板块（组装时**不联网**，只读已抓的 jsonl）。
 
 ## ⚠️ 合规与风险提示（务必读）
 
