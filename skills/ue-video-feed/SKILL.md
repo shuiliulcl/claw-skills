@@ -50,6 +50,7 @@ python "C:\Users\banqiang\.claude\skills\ue-video-feed\scripts\fetch.py"
 |---|---|---|
 | 中文标题 | text(primary) | 用户填写的中文翻译/概括,第一列 |
 | 英文标题 | text | 来自 YouTube 的原标题 |
+| 简介 | text | 由 Claude Haiku 根据 YouTube description 生成的中文 1-2 句概括,60-120 字 |
 | 链接 | text(url) | YouTube 视频链接 |
 | 时长 | text | 形如 12:34 或 1:23:45 |
 | 发布时间 | datetime | yyyy-MM-dd HH:mm |
@@ -57,7 +58,7 @@ python "C:\Users\banqiang\.claude\skills\ue-video-feed\scripts\fetch.py"
 | 备注 | text | 用户筛选时手填,做完笔记后可贴 wiki 链接 |
 | 视频ID | text | YouTube videoId,作为去重主键(脚本读这个) |
 
-新写入记录默认状态=「新发现」,中文标题留空。
+新写入记录默认状态=「新发现」,中文标题 + 简介自动翻译填充(无 anthropic_api_key 时留空)。
 
 ## 行为
 
@@ -97,9 +98,14 @@ Base 共 4 个视图,**新发现 是默认视图**(view 列表里排第一,Base 
 
 调整规则后,运行 `python scripts/cleanup.py` 可以把 Base 里已存在但按新规则该刷掉的记录批量标记为「已忽略」(不删除,保留追溯)。
 
-## 中文标题
+## 中文标题与简介
 
-新视频写入时若有可用的 Anthropic API,会调 Claude Haiku 4.5 批量翻译当次新增标题(单次 API 调用处理所有新增,带 prompt caching),写入 `中文标题` 字段并在私聊推送时优先展示中文。
+新视频写入时若有可用的 Anthropic API,会调 Claude Haiku 4.5 一次 API 调用同时产出:
+
+- **中文标题**(`zh_title`):翻译英文标题,保留技术名词/品牌/系列后缀原文
+- **简介**(`zh_summary`):基于 YouTube description 生成 60-120 字的中文概括,抓主题 + 关键技术点 + 演讲者团队,跳过营销话术
+
+带 prompt caching,5 分钟内重跑省 token。如果 description 太短或全是营销文案,简介输出空字符串(skill 写入时也写空,不强行编)。
 
 **鉴权与中转**:fetch.py 优先读 config.json 里的 `anthropic_api_key` / `anthropic_base_url` / `anthropic_model`,缺失时回退到 `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` 环境变量。
 
@@ -108,13 +114,13 @@ Base 共 4 个视图,**新发现 是默认视图**(view 列表里排第一,Base 
 
 papergames 内部环境通常已经设好 PaperHub 三件套环境变量,fetch.py 直接拿来用,无需手动改 config。
 
-翻译规则(系统提示固化,详见 fetch.py 的 `TRANSLATE_SYSTEM_PROMPT`):
+翻译/总结规则(系统提示固化,详见 fetch.py 的 `TRANSLATE_SYSTEM_PROMPT`):
 
 - 保留原文不译: Unreal Engine / UE5 / UEFN / Niagara / Lumen / Nanite / MegaLights / Chaos / Substrate / MetaHuman / Cascadeur 等技术名词与产品名
 - 保留原文不译: 游戏名 / 工作室名 / 品牌名
 - 保留原文不译: `| Inside Unreal` / `| Game Profile` / `| UEFN Build Along` 等系列标识
 
-无 key 时翻译步骤跳过,中文标题留空,不影响其他流程。翻译失败也不阻塞写入和推送。
+无 key 时翻译/简介步骤跳过,字段留空,不影响其他流程。翻译失败也不阻塞写入和推送。
 
 ## 何时使用
 

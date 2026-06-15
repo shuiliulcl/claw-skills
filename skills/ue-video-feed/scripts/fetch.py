@@ -161,6 +161,7 @@ def get_playlist_videos(playlist_id, api_key):
             {
                 "video_id": c["videoId"],
                 "title": s["title"],
+                "description": s.get("description", ""),
                 "published_at": c.get("videoPublishedAt") or s.get("publishedAt"),
             }
         )
@@ -310,7 +311,7 @@ def get_existing_video_ids():
 def write_new_records(new_videos):
     if not new_videos:
         return 0
-    fields = ["视频ID", "中文标题", "英文标题", "链接", "时长", "发布时间", "状态"]
+    fields = ["视频ID", "中文标题", "英文标题", "简介", "链接", "时长", "发布时间", "状态"]
     written = 0
     chunk_size = 20
     for i in range(0, len(new_videos), chunk_size):
@@ -320,6 +321,7 @@ def write_new_records(new_videos):
                 v["video_id"],
                 v.get("zh_title", ""),
                 v["title"],
+                v.get("zh_summary", ""),
                 f"https://www.youtube.com/watch?v={v['video_id']}",
                 v["duration"],
                 v["published"],
@@ -353,37 +355,55 @@ def write_new_records(new_videos):
 
 
 TRANSLATE_SYSTEM_PROMPT = (
-    "你是 UE 游戏开发频道的视频标题翻译助手。任务:把英文标题翻译成简洁中文。\n"
+    "你是 UE 游戏开发频道的视频元信息中文化助手。任务:对每个英文视频项,产出中文标题 + 中文简介。\n"
     "\n"
-    "硬规则:\n"
+    "中文标题规则(zh_title):\n"
     "- 保留原文不译: Unreal Engine、UE5、UEFN、Niagara、Lumen、Nanite、MegaLights、Chaos、Substrate、MetaHuman、Cascadeur 等技术名词与产品名\n"
     "- 保留原文不译: 游戏名(NBA THE RUN、Beastro、Mixtape 等)、工作室名(Sumo Digital、Neon Giant 等)、品牌名\n"
     "- 保留原文不译: | Inside Unreal、| Game Profile、| Indie Games Week、| UEFN Build Along、| Creating in Fortnite 等系列后缀\n"
-    "- 翻译要简短自然,不加引号,不加解释,不画蛇添足\n"
+    "- 翻译要简短自然,不加引号,不加解释\n"
     "\n"
-    "输入: JSON 数组(每元素一个英文标题)\n"
-    "输出: 同长度 JSON 数组(每元素对应位置的中文标题)。**只输出 JSON 数组,不要任何其他文字**"
+    "中文简介规则(zh_summary):\n"
+    "- 长度 60-120 字,1-2 句话\n"
+    "- 抓视频实际讲什么(主题 + 关键技术点 + 演讲者团队若有意义),不要复述标题\n"
+    "- 跳过营销话术、订阅引导、感谢赞助、纯链接列表\n"
+    "- 技术名词同标题规则保留原文\n"
+    "- 如果 description 太短(< 30 字)或全是营销文案,zh_summary 输出空字符串\n"
+    "\n"
+    "输入: JSON 数组,每元素 {en_title, en_description}\n"
+    "输出: 同长度 JSON 数组,每元素 {zh_title, zh_summary}。**只输出 JSON 数组,不要任何其他文字**"
 )
 
 
-def translate_titles(en_titles, anthropic_api_key, base_url=None, model=None):
-    """批量翻译英文标题到中文 (Claude Haiku 4.5)。
-    无 key / 失败 / 长度不匹配时返回与输入等长的空字符串列表,不阻塞主流程。
+def translate_videos(videos, anthropic_api_key, base_url=None, model=None):
+    """批量翻译标题 + 总结简介 (Claude Haiku 4.5)。
+    输入 videos: list of {title, description, ...}
+    输出: 同长度 list of {zh_title, zh_summary} dict。
+    无 key / 失败 / 长度不匹配时返回与输入等长的空 dict 列表,不阻塞主流程。
 
     base_url: 默认 https://api.anthropic.com,可指向 PaperHub 等中转
     model: 默认 claude-haiku-4-5-20251001(官方)或 claude-haiku-4-5(中转)
     鉴权:base_url 为官方 Anthropic 时用 x-api-key,中转走 Authorization: Bearer
     """
-    if not en_titles:
+    if not videos:
         return []
+    blank = [{"zh_title": "", "zh_summary": ""} for _ in videos]
     if not anthropic_api_key:
-        log("config 无 anthropic_api_key,跳过翻译")
-        return ["" for _ in en_titles]
+        log("config 无 anthropic_api_key,跳过翻译/简介")
+        return blank
 
     base_url = (base_url or "https://api.anthropic.com").rstrip("/")
     model = model or "claude-haiku-4-5-20251001"
     is_official = "api.anthropic.com" in base_url
 
+    # 限长 description,避免单次调用过大
+    payload_videos = [
+        {
+            "en_title": v["title"],
+            "en_description": (v.get("description") or "")[:1200],
+        }
+        for v in videos
+    ]
     payload = {
         "model": model,
         "max_tokens": 4096,
@@ -395,7 +415,10 @@ def translate_titles(en_titles, anthropic_api_key, base_url=None, model=None):
             }
         ],
         "messages": [
-            {"role": "user", "content": json.dumps(en_titles, ensure_ascii=False)}
+            {
+                "role": "user",
+                "content": json.dumps(payload_videos, ensure_ascii=False),
+            }
         ],
     }
     headers = {
@@ -413,15 +436,15 @@ def translate_titles(en_titles, anthropic_api_key, base_url=None, model=None):
         headers=headers,
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
+        with urllib.request.urlopen(req, timeout=90) as resp:
             result = json.load(resp)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore")
         log(f"翻译 API HTTP {e.code}: {body[:300]}")
-        return ["" for _ in en_titles]
+        return blank
     except urllib.error.URLError as e:
         log(f"翻译 API 网络错误: {e}")
-        return ["" for _ in en_titles]
+        return blank
 
     text = (result.get("content") or [{}])[0].get("text", "").strip()
     if text.startswith("```"):
@@ -429,13 +452,13 @@ def translate_titles(en_titles, anthropic_api_key, base_url=None, model=None):
         text = re.sub(r"\s*```$", "", text)
         text = text.strip()
     try:
-        zh_list = json.loads(text)
+        parsed = json.loads(text)
     except json.JSONDecodeError:
         log(f"翻译返回非合法 JSON,原文前 200 字: {text[:200]}")
-        return ["" for _ in en_titles]
-    if not isinstance(zh_list, list) or len(zh_list) != len(en_titles):
-        log(f"翻译返回结构不匹配 (期望 list 长度 {len(en_titles)})")
-        return ["" for _ in en_titles]
+        return blank
+    if not isinstance(parsed, list) or len(parsed) != len(videos):
+        log(f"翻译返回结构不匹配 (期望 list 长度 {len(videos)})")
+        return blank
 
     usage = result.get("usage") or {}
     cache_read = usage.get("cache_read_input_tokens", 0)
@@ -443,7 +466,18 @@ def translate_titles(en_titles, anthropic_api_key, base_url=None, model=None):
     if cache_read or cache_create:
         log(f"  翻译 cache: read {cache_read} / create {cache_create} tokens")
 
-    return [str(t) if t else "" for t in zh_list]
+    out = []
+    for item in parsed:
+        if isinstance(item, dict):
+            out.append(
+                {
+                    "zh_title": str(item.get("zh_title") or ""),
+                    "zh_summary": str(item.get("zh_summary") or ""),
+                }
+            )
+        else:
+            out.append({"zh_title": "", "zh_summary": ""})
+    return out
 
 
 def push_dm(new_videos):
@@ -523,18 +557,20 @@ def main():
 
     new_videos.sort(key=lambda v: v["published_at"] or "", reverse=True)
 
-    # 翻译中文标题(可选,失败不阻塞)
-    zh_titles = translate_titles(
-        [v["title"] for v in new_videos],
+    # 翻译中文标题 + 生成中文简介(可选,失败不阻塞)
+    enriched = translate_videos(
+        new_videos,
         cfg.get("anthropic_api_key", ""),
         base_url=cfg.get("anthropic_base_url"),
         model=cfg.get("anthropic_model"),
     )
-    for v, zh in zip(new_videos, zh_titles):
-        v["zh_title"] = zh
-    ok_zh = sum(1 for t in zh_titles if t)
-    if ok_zh:
-        log(f"翻译完成 {ok_zh}/{len(new_videos)} 条中文标题")
+    for v, info in zip(new_videos, enriched):
+        v["zh_title"] = info.get("zh_title", "")
+        v["zh_summary"] = info.get("zh_summary", "")
+    ok_zh = sum(1 for info in enriched if info.get("zh_title"))
+    ok_summary = sum(1 for info in enriched if info.get("zh_summary"))
+    if ok_zh or ok_summary:
+        log(f"翻译完成 标题 {ok_zh}/{len(new_videos)} + 简介 {ok_summary}/{len(new_videos)}")
 
     written = write_new_records(new_videos)
     if written > 0:
