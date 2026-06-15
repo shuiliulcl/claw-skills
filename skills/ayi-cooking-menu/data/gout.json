@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "version": 1,
+    "purpose": "痛风(高尿酸)饮食偏向模块。适当偏向、非严格戒口：选菜倾向低嘌呤+蛋菜，分装时高嘌呤菜对痛风者少分。",
+    "source": "《中国高尿酸血症与痛风诊疗指南(2019)》中华医学会内分泌学分会；食物嘌呤分级(高>150 / 中75-150 / 低<75 mg·100g⁻¹)。",
+    "gout_person": "B",
+    "strictness": "soft",
+    "principles": [
+      "限高嘌呤：动物内脏、浓肉汤/老汤、部分海鲜(沙丁鱼/凤尾鱼/贝类、虾米海米)——尽量少做或痛风者少分。",
+      "中嘌呤适量：多数畜禽肉、鱼虾、豆制品、菌菇不必禁，控量即可；红肉别天天大份，白肉(鸡)优于红肉。",
+      "鼓励低嘌呤优质蛋白：鸡蛋、低脂奶——痛风者多分蛋菜。",
+      "多新鲜蔬菜、多喝水(>2000ml/天)；忌啤酒白酒、少含糖饮料(果糖升尿酸)。",
+      "控制体重对降尿酸有益。",
+      "豆制品、菠菜等植物嘌呤经研究不显著增加痛风风险，可适量，无需严格戒。"
+    ]
+  },
+  "purine_levels_note": "下列按菜成品的主料嘌呤估算；纯蔬菜/纯蛋为低，含肉鱼豆为中，含虾米海米/浓汤等为高。",
+  "dish_purine_level": {
+    "hongshao_paigu": "中",
+    "shao_qingcai": "低",
+    "oupian_helandou_muer": "中",
+    "fanqie_niunan": "中",
+    "shao_shengcai": "低",
+    "qincai_chao_dougan": "中",
+    "youmianjin_serou": "中",
+    "chao_xiaobaicai": "低",
+    "dougan_chao_rourou": "中",
+    "hongshao_yu": "中",
+    "chao_qingcai": "低",
+    "qingjiao_chao_rousi": "中",
+    "qingzheng_yu": "中",
+    "hongshao_qiezi": "低",
+    "chao_caijie": "低",
+    "chao_tudousi": "低",
+    "huanggua_chao_jiding": "中",
+    "fanqie_chao_dan": "低",
+    "zheng_dan_geng": "低",
+    "suanrong_kongxincai": "低",
+    "suanla_oudai": "低",
+    "suanrong_youmaicai": "低",
+    "chao_hongshuye": "低",
+    "jiaobai_chao_rousi": "中",
+    "shousi_baocai": "低",
+    "roubing_zheng_dan": "中",
+    "kaiyang_donggua": "高",
+    "sigua_chao_dan": "低",
+    "qingzheng_guiyu": "中",
+    "sigua_chao_xiaren": "高",
+    "jiaobai_chao_xiaren": "高",
+    "yinyu_chao_dan": "中",
+    "shacong_chao_dan": "低",
+    "jiangbao_jiding": "中",
+    "sanbei_ji": "中",
+    "baizhan_ji": "中",
+    "gali_ji": "中"
+  },
+  "high_purine_ingredients": ["开洋", "虾仁", "虾", "蟹", "贝类", "牛蛙", "干香菇", "紫菜", "动物内脏", "浓肉汤"],
+  "portion_adjust_for_gout_person": {
+    "低": "不限，鼓励多分(尤其蛋菜)",
+    "中": "正常分；避免一天给痛风者多道大份红肉/海鲜",
+    "高": "痛风者少分，多给另一人；或当周降频"
+  },
+  "reminders": [
+    "提醒痛风者(B)每天多喝水(>2000ml)。",
+    "提醒忌啤酒白酒、少喝含糖饮料。",
+    "急性发作期应更严格(高+中嘌呤都暂避)，本模块为日常缓解期的适当偏向。"
+  ]
+}

@@ -1,0 +1,674 @@
+{
+  "_meta": {
+    "version": 1,
+    "portion_basis": "2人2顿(午+晚),约等于4人份",
+    "note": "调料中标 staple:true 的为家中常备(油盐酱醋糖料酒等),默认不进采购清单;葱姜蒜虽常备但易耗尽,标为 buy_optional 由用户决定是否补货。",
+    "categories": ["荤", "荤·水产", "半荤素", "素·绿叶", "素"],
+    "blacklist_ingredients": ["花生"]
+  },
+  "dishes": [
+    {
+      "id": "hongshao_paigu",
+      "name": "红烧肋排",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 50,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "猪肋排", "qty": 800, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"},
+        {"item": "八角", "qty": 2, "unit": "颗"}
+      ],
+      "tags": []
+    },
+    {
+      "id": "shao_qingcai",
+      "name": "烧青菜",
+      "category": "素·绿叶",
+      "method": "烧",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "上海青", "qty": 500, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒"]
+    },
+    {
+      "id": "oupian_helandou_muer",
+      "name": "藕片荷兰豆黑木耳",
+      "category": "素",
+      "method": "清炒",
+      "difficulty": 2,
+      "minutes": 15,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "莲藕", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "荷兰豆", "qty": 200, "unit": "g", "section": "蔬菜"},
+        {"item": "干黑木耳", "qty": 15, "unit": "g", "section": "干货"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["木耳需提前泡发"]
+    },
+    {
+      "id": "fanqie_niunan",
+      "name": "番茄牛腩",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 90,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "牛腩", "qty": 500, "unit": "g", "section": "肉禽蛋"},
+        {"item": "番茄", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"},
+        {"item": "八角", "qty": 2, "unit": "颗"},
+        {"item": "桂皮", "qty": 1, "unit": "小段"}
+      ],
+      "tags": ["炖煮耗时长", "番茄解腻补深色蔬菜", "维C有助降尿酸"]
+    },
+    {
+      "id": "shao_shengcai",
+      "name": "烧生菜",
+      "category": "素·绿叶",
+      "method": "烧",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "生菜", "qty": 500, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒"]
+    },
+    {
+      "id": "qincai_chao_dougan",
+      "name": "芹菜炒豆干",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 12,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "芹菜", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "豆干", "qty": 200, "unit": "g", "section": "豆制品"}
+      ],
+      "aromatics": [],
+      "tags": []
+    },
+    {
+      "id": "youmianjin_serou",
+      "name": "油面筋塞肉",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 3,
+      "minutes": 40,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "油面筋", "qty": 12, "unit": "个", "section": "豆制品"},
+        {"item": "猪肉糜", "qty": 300, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": []
+    },
+    {
+      "id": "chao_xiaobaicai",
+      "name": "炒小白菜",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "小白菜", "qty": 500, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒"]
+    },
+    {
+      "id": "dougan_chao_rourou",
+      "name": "豆干炒肉糜",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 12,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "豆干", "qty": 250, "unit": "g", "section": "豆制品"},
+        {"item": "猪肉糜", "qty": 200, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": []
+    },
+    {
+      "id": "hongshao_yu",
+      "name": "红烧鱼",
+      "category": "荤·水产",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 30,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鲈鱼", "qty": 1, "unit": "条(约600g)", "section": "水产"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"}
+      ],
+      "tags": []
+    },
+    {
+      "id": "chao_qingcai",
+      "name": "炒青菜",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "上海青", "qty": 500, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒"]
+    },
+    {
+      "id": "qingjiao_chao_rousi",
+      "name": "青椒炒肉丝",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 12,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "青椒", "qty": 250, "unit": "g", "section": "蔬菜"},
+        {"item": "猪里脊", "qty": 250, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [],
+      "tags": []
+    },
+    {
+      "id": "qingzheng_yu",
+      "name": "清蒸鲈鱼",
+      "category": "荤·水产",
+      "method": "清蒸",
+      "difficulty": 2,
+      "minutes": 20,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "鲈鱼", "qty": 1, "unit": "条(约600g)", "section": "水产"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"}
+      ],
+      "tags": ["清蒸建议现做，口感最佳"]
+    },
+    {
+      "id": "hongshao_qiezi",
+      "name": "红烧茄子",
+      "category": "素",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 20,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "茄子", "qty": 500, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 3, "unit": "瓣"}
+      ],
+      "tags": []
+    },
+    {
+      "id": "hongshao_jitui",
+      "name": "红烧鸡腿",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 40,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鸡腿", "qty": 600, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"},
+        {"item": "八角", "qty": 2, "unit": "颗"}
+      ],
+      "tags": ["禽肉, 白肉更瘦"]
+    },
+    {
+      "id": "chao_caijie",
+      "name": "炒菜节",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "菜薹", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒", "品种待确认(暂按菜薹)"]
+    },
+    {
+      "id": "chao_tudousi",
+      "name": "炒土豆丝",
+      "category": "素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 12,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "土豆", "qty": 400, "unit": "g", "section": "蔬菜"},
+        {"item": "青椒", "qty": 50, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [],
+      "tags": []
+    },
+    {
+      "id": "huanggua_chao_jiding",
+      "name": "黄瓜丁炒鸡肉丁",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 15,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "黄瓜", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "鸡胸肉", "qty": 250, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [],
+      "tags": []
+    },
+    {
+      "id": "fanqie_chao_dan",
+      "name": "番茄炒蛋",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "番茄", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["补蛋类", "番茄为深色蔬菜"]
+    },
+    {
+      "id": "zheng_dan_geng",
+      "name": "蒸蛋羹",
+      "category": "半荤素",
+      "method": "清蒸",
+      "difficulty": 1,
+      "minutes": 15,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["补蛋类", "低卡减脂友好"]
+    },
+    {
+      "id": "suanrong_kongxincai",
+      "name": "蒜蓉空心菜",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": false,
+      "season": "夏",
+      "ingredients": [
+        {"item": "空心菜", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 3, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒", "夏季时令"]
+    },
+    {
+      "id": "suanla_oudai",
+      "name": "酸辣藕带",
+      "category": "素",
+      "method": "爆炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": true,
+      "season": "夏",
+      "ingredients": [
+        {"item": "藕带", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"},
+        {"item": "干辣椒", "qty": 3, "unit": "个"}
+      ],
+      "tags": ["夏季时令", "酸辣开胃", "藕带需新鲜现做"]
+    },
+    {
+      "id": "shousi_baocai",
+      "name": "手撕包菜",
+      "category": "素",
+      "method": "爆炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "包菜", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 3, "unit": "瓣"}
+      ],
+      "tags": ["醋香开胃", "包菜较耐放"]
+    },
+    {
+      "id": "suanrong_youmaicai",
+      "name": "蒜蓉油麦菜",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 7,
+      "reheat_ok": false,
+      "season": "夏",
+      "ingredients": [
+        {"item": "油麦菜", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒", "夏季时令"]
+    },
+    {
+      "id": "chao_hongshuye",
+      "name": "炒红薯叶",
+      "category": "素·绿叶",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": false,
+      "season": "夏",
+      "ingredients": [
+        {"item": "红薯叶", "qty": 400, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 3, "unit": "瓣"}
+      ],
+      "tags": ["绿叶菜建议现炒", "夏季时令"]
+    },
+    {
+      "id": "jiaobai_chao_rousi",
+      "name": "茭白炒肉丝",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 15,
+      "reheat_ok": true,
+      "season": "夏",
+      "ingredients": [
+        {"item": "茭白", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "猪里脊", "qty": 200, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [],
+      "tags": ["上海本帮", "夏季时令"]
+    },
+    {
+      "id": "roubing_zheng_dan",
+      "name": "肉饼蒸蛋",
+      "category": "半荤素",
+      "method": "清蒸",
+      "difficulty": 1,
+      "minutes": 20,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "猪肉糜", "qty": 200, "unit": "g", "section": "肉禽蛋"},
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["补蛋类", "家常下饭"]
+    },
+    {
+      "id": "kaiyang_donggua",
+      "name": "开洋冬瓜",
+      "category": "素",
+      "method": "烧",
+      "difficulty": 1,
+      "minutes": 18,
+      "reheat_ok": true,
+      "season": "夏",
+      "ingredients": [
+        {"item": "冬瓜", "qty": 500, "unit": "g", "section": "蔬菜"},
+        {"item": "开洋", "qty": 15, "unit": "g", "section": "干货"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["上海本帮", "夏季时令", "开洋即海米/虾米"]
+    },
+    {
+      "id": "sigua_chao_dan",
+      "name": "丝瓜炒蛋",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": true,
+      "season": "夏",
+      "ingredients": [
+        {"item": "丝瓜", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["补蛋类", "夏季时令"]
+    },
+    {
+      "id": "qingzheng_guiyu",
+      "name": "清蒸鳜鱼",
+      "category": "荤·水产",
+      "method": "清蒸",
+      "difficulty": 2,
+      "minutes": 20,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "鳜鱼", "qty": 1, "unit": "条(约600g)", "section": "水产"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"}
+      ],
+      "tags": ["少刺", "清蒸建议现做", "肉厚蒜瓣肉老少皆宜"]
+    },
+    {
+      "id": "sigua_chao_xiaren",
+      "name": "丝瓜炒虾仁",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 2,
+      "minutes": 12,
+      "reheat_ok": false,
+      "season": "夏",
+      "ingredients": [
+        {"item": "丝瓜", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "虾仁", "qty": 150, "unit": "g", "section": "水产"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["上海本帮", "夏季时令", "水产", "虾仁高嘌呤·痛风者少分"]
+    },
+    {
+      "id": "jiaobai_chao_xiaren",
+      "name": "茭白炒虾仁",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 2,
+      "minutes": 12,
+      "reheat_ok": false,
+      "season": "夏",
+      "ingredients": [
+        {"item": "茭白", "qty": 300, "unit": "g", "section": "蔬菜"},
+        {"item": "虾仁", "qty": 150, "unit": "g", "section": "水产"}
+      ],
+      "aromatics": [
+        {"item": "蒜", "qty": 2, "unit": "瓣"}
+      ],
+      "tags": ["上海本帮", "夏季时令", "水产", "虾仁高嘌呤·痛风者少分"]
+    },
+    {
+      "id": "yinyu_chao_dan",
+      "name": "银鱼炒蛋",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 10,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "银鱼", "qty": 100, "unit": "g", "section": "水产"},
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"}
+      ],
+      "tags": ["补蛋类", "水产", "鲜嫩"]
+    },
+    {
+      "id": "shacong_chao_dan",
+      "name": "沙葱炒蛋",
+      "category": "半荤素",
+      "method": "清炒",
+      "difficulty": 1,
+      "minutes": 8,
+      "reheat_ok": true,
+      "season": "夏",
+      "ingredients": [
+        {"item": "沙葱", "qty": 200, "unit": "g", "section": "蔬菜"},
+        {"item": "鸡蛋", "qty": 3, "unit": "个", "section": "肉禽蛋"}
+      ],
+      "aromatics": [],
+      "tags": ["补蛋类", "沙葱为深色蔬菜", "清香"]
+    },
+    {
+      "id": "jiangbao_jiding",
+      "name": "酱爆鸡丁",
+      "category": "半荤素",
+      "method": "爆炒",
+      "difficulty": 2,
+      "minutes": 15,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鸡腿肉", "qty": 250, "unit": "g", "section": "肉禽蛋"},
+        {"item": "黄瓜", "qty": 150, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "葱", "qty": 1, "unit": "根"},
+        {"item": "蒜", "qty": 2, "unit": "瓣"},
+        {"item": "干辣椒", "qty": 3, "unit": "个"}
+      ],
+      "tags": ["酱香微辣", "黄瓜丁解腻", "无花生"]
+    },
+    {
+      "id": "sanbei_ji",
+      "name": "三杯鸡",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 35,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鸡腿", "qty": 600, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "蒜", "qty": 5, "unit": "瓣"},
+        {"item": "罗勒", "qty": 1, "unit": "小把"}
+      ],
+      "tags": ["酱香浓郁", "麻油米酒收汁"]
+    },
+    {
+      "id": "baizhan_ji",
+      "name": "白斩鸡",
+      "category": "荤",
+      "method": "白灼",
+      "difficulty": 2,
+      "minutes": 30,
+      "reheat_ok": false,
+      "ingredients": [
+        {"item": "鸡腿", "qty": 600, "unit": "g", "section": "肉禽蛋"}
+      ],
+      "aromatics": [
+        {"item": "姜", "qty": 1, "unit": "块"},
+        {"item": "葱", "qty": 2, "unit": "根"}
+      ],
+      "tags": ["少油瘦白肉·痛风相对友好", "配姜葱蘸料", "现做口感佳"]
+    },
+    {
+      "id": "gali_ji",
+      "name": "咖喱鸡",
+      "category": "荤",
+      "method": "红烧",
+      "difficulty": 2,
+      "minutes": 35,
+      "reheat_ok": true,
+      "ingredients": [
+        {"item": "鸡腿肉", "qty": 350, "unit": "g", "section": "肉禽蛋"},
+        {"item": "土豆", "qty": 200, "unit": "g", "section": "蔬菜"},
+        {"item": "胡萝卜", "qty": 150, "unit": "g", "section": "蔬菜"}
+      ],
+      "aromatics": [
+        {"item": "洋葱", "qty": 1, "unit": "个"}
+      ],
+      "tags": ["含土豆胡萝卜·土豆当淀粉(A减脂米饭相应减)", "咖喱块自带咸味"]
+    }
+  ],
+  "pantry": {
+    "_note": "家中常备，默认不计入每周买菜清单；但每次输出菜单时要附一张'常备确认清单'(只列本周菜实际会用到的项)供用户核对补货。",
+    "基础调料": ["食用油", "盐", "生抽", "老抽", "料酒", "白糖", "醋", "蚝油", "淀粉"],
+    "香料": ["八角", "桂皮", "干辣椒", "花椒"],
+    "建议常备": ["蒸鱼豉油", "香油"],
+    "主食": ["糙米/杂粮米", "大米"],
+    "usage_hint": {
+      "老抽": "红烧上色(红烧肋排/鸡腿/番茄牛腩/油面筋/红烧鱼)",
+      "白糖": "红烧提鲜上色",
+      "料酒": "去腥(鱼、虾、肉)",
+      "醋": "酸辣藕带、手撕包菜",
+      "淀粉": "虾仁/肉丝上浆勾芡",
+      "八角": "红烧鸡腿、番茄牛腩",
+      "桂皮": "番茄牛腩",
+      "干辣椒": "酸辣藕带、手撕包菜",
+      "蒸鱼豉油": "清蒸鲈鱼(无则生抽代)",
+      "糙米/杂粮米": "每天主食"
+    }
+  }
+}

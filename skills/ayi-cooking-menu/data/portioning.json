@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "version": 1,
+    "purpose": "分装与热量控制模块。两人同桌吃同样的菜(不分锅)，仅通过分装比例区分摄入：A 减脂控热量，B 正常可多吃。",
+    "principle": "菜色兼容，只控摄入：A 多吃低卡(绿叶/清蒸/瘦肉)、少夹高卡(红烧/吸油/淀粉)；B 把高卡的多吃。"
+  },
+  "_no_breakfast": "本家庭不吃早餐，每日热量全部由午饭+晚饭承担(阿姨一次做两顿的量)。故 daily 目标= 午晚两顿之和，菜量需相应放大(见 serving_scale)。",
+  "eaters": {
+    "A": {"name": "减脂", "goal": "控制热量", "daily_kcal_target": "约1200-1400(午晚两顿=全天, 无早餐)", "note": "主食减半；高卡菜尝味为主，靠低卡菜吃饱"},
+    "B": {"name": "正常", "goal": "维持体重+痛风", "profile": "183cm/100kg男, BMI~30", "daily_kcal_target": "约2300-2400(午晚两顿=全天, 无早餐), 维持体重", "note": "维持体重需吃够：主食加量(见 staple_grain)，低卡蔬菜/蛋菜可添；但有痛风，高嘌呤菜(见 gout.json)要少分"}
+  },
+  "serving_scale": {
+    "_note": "全局份量系数。dishes.json 的克数基准是常规'2人2顿'；因本家庭无早餐、且 B 体型大要维持体重，两顿要吃够全天热量，故所有菜的采购量与热量按此系数放大。",
+    "dish_scale": 1.2,
+    "applies_to": "所有菜的 ingredients 克数(采购量)与热量估算同步×dish_scale；分装 A:B 比例不变",
+    "rationale": "主要靠'第三道用肉菜结合'把每日热量顶上去(见 SKILL 选菜规则1-2)，本系数只做温和补足。放大后 A 午晚≈1250、B 午晚≈2400，分别命中减脂/维持目标"
+  },
+  "cal_levels": {
+    "低": {"desc": "低卡/高纤/瘦蛋白，少油", "split_A_B": "50:50", "A_advice": "可放开吃"},
+    "中": {"desc": "有肉有油或含淀粉，适量", "split_A_B": "40:60", "A_advice": "适量"},
+    "高": {"desc": "高油/高脂/高糖/吸油重，热量密集", "split_A_B": "30:70", "A_advice": "尝味为主，少夹"}
+  },
+  "dish_cal_level": {
+    "hongshao_paigu": "高",
+    "shao_qingcai": "低",
+    "oupian_helandou_muer": "中",
+    "fanqie_niunan": "高",
+    "shao_shengcai": "低",
+    "qincai_chao_dougan": "低",
+    "youmianjin_serou": "高",
+    "chao_xiaobaicai": "低",
+    "dougan_chao_rourou": "中",
+    "hongshao_yu": "中",
+    "chao_qingcai": "低",
+    "qingjiao_chao_rousi": "中",
+    "qingzheng_yu": "低",
+    "hongshao_qiezi": "高",
+    "hongshao_jitui": "中",
+    "chao_caijie": "低",
+    "chao_tudousi": "中",
+    "huanggua_chao_jiding": "低",
+    "fanqie_chao_dan": "中",
+    "zheng_dan_geng": "低",
+    "suanrong_kongxincai": "低",
+    "suanla_oudai": "低",
+    "chao_muercai": "低",
+    "suanrong_youmaicai": "低",
+    "chao_hongshuye": "低",
+    "jiaobai_chao_rousi": "中",
+    "shousi_baocai": "低",
+    "roubing_zheng_dan": "中",
+    "kaiyang_donggua": "低",
+    "sigua_chao_dan": "中",
+    "qingzheng_guiyu": "低",
+    "sigua_chao_xiaren": "低",
+    "jiaobai_chao_xiaren": "低",
+    "yinyu_chao_dan": "中",
+    "shacong_chao_dan": "低",
+    "jiangbao_jiding": "中",
+    "sanbei_ji": "中",
+    "baizhan_ji": "低",
+    "gali_ji": "中"
+  },
+  "staple_grain": {
+    "_note": "主食/米饭。默认提供，可选白米/糙米/杂粮。生重→熟约 ×2.3。",
+    "default_type": "杂粮米",
+    "options": ["白米", "糙米", "杂粮米"],
+    "recommend": "糙米或杂粮米：全谷物、GI低、饱腹强，对 A 减脂更友好，也满足膳食指南'全谷物占谷类1/4~1/2'",
+    "per_person_per_meal_raw_g": {"A": 55, "B": 130},
+    "A_note": "减脂：糙米/杂粮饭，每顿生米约55g(熟约125g)；无早餐故略给一点，午晚共~110g≈385kcal",
+    "B_note": "维持体重：每顿生米约130g(熟约300g, 约455kcal/顿)；午晚共~260g≈910kcal主食，配放大后的菜达~2200+，低卡蔬菜/蛋菜可再添到~2350",
+    "purchase": "米按袋常备(囤货)，清单只提醒'确认糙米/杂粮米库存'，不计每周采购量"
+  },
+  "notes": [
+    "红烧茄子虽是素菜但极吸油，归高卡；炒土豆丝是淀粉，对 A 当半主食看待，米饭相应再减。",
+    "清蒸鱼、黄瓜丁炒鸡肉丁、各类绿叶菜是 A 的主力菜，可多分。",
+    "想更严格控热量：让阿姨红烧类少糖少油、绿叶菜少油快炒，对 B 口感影响很小。"
+  ]
+}

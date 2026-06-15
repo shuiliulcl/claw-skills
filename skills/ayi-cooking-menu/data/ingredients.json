@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "version": 1,
+    "purpose": "食材主数据：定义每样食材的采购分区(section)与保鲜等级(shelf)。dishes.json 引用食材名，本表是 section/shelf 的权威来源。用户新增菜时，新食材请在此登记。",
+    "shelf_levels": {
+      "囤货": "耐储存 1-2 周以上，一周采购一次即可（蛋、根茎、干货、调料、油面筋等）",
+      "中等": "可放 3-5 天，一周买 1-2 次（豆干、瓜茄椒、葱姜蒜）",
+      "鲜买": "最好当天/隔天用，分批买保证新鲜（绿叶菜、鲜肉、鱼、水产）"
+    },
+    "sections": ["蔬菜", "肉禽蛋", "水产", "豆制品", "干货", "调料"]
+  },
+  "ingredients": {
+    "鸡蛋":      {"section": "肉禽蛋", "shelf": "囤货"},
+    "土豆":      {"section": "蔬菜",   "shelf": "囤货"},
+    "莲藕":      {"section": "蔬菜",   "shelf": "囤货"},
+    "干黑木耳":  {"section": "干货",   "shelf": "囤货"},
+    "油面筋":    {"section": "豆制品", "shelf": "囤货"},
+    "八角":      {"section": "调料",   "shelf": "囤货"},
+    "桂皮":      {"section": "调料",   "shelf": "囤货"},
+
+    "黄瓜":      {"section": "蔬菜",   "shelf": "中等"},
+    "番茄":      {"section": "蔬菜",   "shelf": "中等"},
+    "胡萝卜":    {"section": "蔬菜",   "shelf": "囤货"},
+    "洋葱":      {"section": "蔬菜",   "shelf": "囤货"},
+    "茭白":      {"section": "蔬菜",   "shelf": "中等"},
+    "毛豆":      {"section": "蔬菜",   "shelf": "中等"},
+    "冬瓜":      {"section": "蔬菜",   "shelf": "中等"},
+    "包菜":      {"section": "蔬菜",   "shelf": "中等"},
+    "开洋":      {"section": "干货",   "shelf": "囤货"},
+    "茄子":      {"section": "蔬菜",   "shelf": "中等"},
+    "青椒":      {"section": "蔬菜",   "shelf": "中等"},
+    "芹菜":      {"section": "蔬菜",   "shelf": "中等"},
+    "荷兰豆":    {"section": "蔬菜",   "shelf": "中等"},
+    "豆干":      {"section": "豆制品", "shelf": "中等"},
+    "姜":        {"section": "蔬菜",   "shelf": "中等"},
+    "蒜":        {"section": "蔬菜",   "shelf": "中等"},
+    "葱":        {"section": "蔬菜",   "shelf": "中等"},
+
+    "上海青":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "空心菜":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "苋菜":      {"section": "蔬菜",   "shelf": "鲜买"},
+    "木耳菜":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "油麦菜":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "红薯叶":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "沙葱":      {"section": "蔬菜",   "shelf": "鲜买"},
+    "丝瓜":      {"section": "蔬菜",   "shelf": "鲜买"},
+    "藕带":      {"section": "蔬菜",   "shelf": "鲜买"},
+    "小白菜":    {"section": "蔬菜",   "shelf": "鲜买"},
+    "生菜":      {"section": "蔬菜",   "shelf": "鲜买"},
+    "菜薹":      {"section": "蔬菜",   "shelf": "鲜买"},
+
+    "猪肋排":    {"section": "肉禽蛋", "shelf": "鲜买"},
+    "牛腩":      {"section": "肉禽蛋", "shelf": "鲜买"},
+    "猪肉糜":    {"section": "肉禽蛋", "shelf": "鲜买"},
+    "猪里脊":    {"section": "肉禽蛋", "shelf": "鲜买"},
+    "鸡胸肉":    {"section": "肉禽蛋", "shelf": "鲜买"},
+    "鸡腿":      {"section": "肉禽蛋", "shelf": "鲜买"},
+    "鸡腿肉":    {"section": "肉禽蛋", "shelf": "鲜买"},
+
+    "鲈鱼":      {"section": "水产",   "shelf": "鲜买"},
+    "虾仁":      {"section": "水产",   "shelf": "鲜买"},
+    "鳜鱼":      {"section": "水产",   "shelf": "鲜买"},
+    "银鱼":      {"section": "水产",   "shelf": "鲜买"},
+    "牛蛙":      {"section": "水产",   "shelf": "鲜买"}
+  }
+}

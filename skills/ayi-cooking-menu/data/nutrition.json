@@ -1,0 +1,80 @@
+{
+  "_meta": {
+    "version": 1,
+    "purpose": "食材热量数据 + 烹饪法油糖加成，用于按配方累加估算每道菜热量。",
+    "method": "菜热量 = Σ(食材克数 × edible_ratio × kcal_per_100g / 100) + 烹饪法加成(油×9 + 糖×4)。葱姜蒜等微量香料忽略。",
+    "source_priority": "1) 中国食物成分表(标准版)第6版, 杨月欣主编, 中国疾控中心营养与健康所;  2) 缺项用 USDA FoodData Central 补充。每条 src 标注来源。",
+    "disclaimer": "kcal 为每100g可食部粗估值；油量、含水率、部位肥瘦有现实波动，结果仅供控量参考，非精确营养标定。",
+    "units": "kcal_per_100g 单位千卡/100g可食部；edible_ratio 为可食部占采购重量比例(带骨/整鱼等<1)。"
+  },
+  "ingredients": {
+    "上海青":   {"kcal_per_100g": 15,  "edible_ratio": 0.90, "src": "中国食物成分表(青菜)"},
+    "空心菜":   {"kcal_per_100g": 20,  "edible_ratio": 0.76, "src": "中国食物成分表(蕹菜/空心菜)"},
+    "苋菜":     {"kcal_per_100g": 30,  "edible_ratio": 0.74, "src": "中国食物成分表(苋菜)"},
+    "木耳菜":   {"kcal_per_100g": 20,  "edible_ratio": 0.80, "src": "中国食物成分表(落葵/木耳菜)"},
+    "油麦菜":   {"kcal_per_100g": 16,  "edible_ratio": 0.85, "src": "中国食物成分表(油麦菜)"},
+    "红薯叶":   {"kcal_per_100g": 30,  "edible_ratio": 0.85, "src": "中国食物成分表(甘薯叶/红薯叶)"},
+    "小白菜":   {"kcal_per_100g": 15,  "edible_ratio": 0.90, "src": "中国食物成分表"},
+    "生菜":     {"kcal_per_100g": 16,  "edible_ratio": 0.94, "src": "中国食物成分表"},
+    "菜薹":     {"kcal_per_100g": 31,  "edible_ratio": 0.85, "src": "中国食物成分表(菜薹/菜心)"},
+    "土豆":     {"kcal_per_100g": 81,  "edible_ratio": 0.94, "src": "中国食物成分表(马铃薯)"},
+    "莲藕":     {"kcal_per_100g": 73,  "edible_ratio": 0.88, "src": "中国食物成分表(藕)"},
+    "黄瓜":     {"kcal_per_100g": 16,  "edible_ratio": 0.92, "src": "中国食物成分表"},
+    "番茄":     {"kcal_per_100g": 15,  "edible_ratio": 0.97, "src": "中国食物成分表(番茄/西红柿)"},
+    "胡萝卜":   {"kcal_per_100g": 39,  "edible_ratio": 0.96, "src": "中国食物成分表(胡萝卜)"},
+    "洋葱":     {"kcal_per_100g": 40,  "edible_ratio": 0.90, "src": "中国食物成分表(洋葱)"},
+    "沙葱":     {"kcal_per_100g": 30,  "edible_ratio": 0.90, "src": "近似葱属野菜(沙葱/蒙古韭), 低卡"},
+    "茭白":     {"kcal_per_100g": 26,  "edible_ratio": 0.74, "src": "中国食物成分表(茭白), 带壳可食部约74%"},
+    "毛豆":     {"kcal_per_100g": 131, "edible_ratio": 0.53, "src": "中国食物成分表(毛豆/鲜), 带荚可食(豆仁)约53%, 计入大豆类"},
+    "丝瓜":     {"kcal_per_100g": 20,  "edible_ratio": 0.83, "src": "中国食物成分表(丝瓜)"},
+    "藕带":     {"kcal_per_100g": 45,  "edible_ratio": 0.90, "src": "莲藕嫩茎(藕带), 近似莲藕偏低, 淀粉少更嫩"},
+    "冬瓜":     {"kcal_per_100g": 11,  "edible_ratio": 0.80, "src": "中国食物成分表(冬瓜), 极低卡"},
+    "包菜":     {"kcal_per_100g": 24,  "edible_ratio": 0.86, "src": "中国食物成分表(卷心菜/圆白菜)"},
+    "开洋":     {"kcal_per_100g": 198, "edible_ratio": 1.00, "src": "中国食物成分表(海米/虾米), 用量少"},
+    "茄子":     {"kcal_per_100g": 23,  "edible_ratio": 0.93, "src": "中国食物成分表"},
+    "青椒":     {"kcal_per_100g": 22,  "edible_ratio": 0.82, "src": "中国食物成分表(青椒/甜椒)"},
+    "芹菜":     {"kcal_per_100g": 17,  "edible_ratio": 0.67, "src": "中国食物成分表(芹菜茎)"},
+    "荷兰豆":   {"kcal_per_100g": 30,  "edible_ratio": 0.88, "src": "中国食物成分表"},
+
+    "猪肋排":   {"kcal_per_100g": 278, "edible_ratio": 0.65, "src": "中国食物成分表(猪小排), 带骨可食部约65%"},
+    "牛腩":     {"kcal_per_100g": 332, "edible_ratio": 1.00, "src": "中国食物成分表(牛腩)"},
+    "猪肉糜":   {"kcal_per_100g": 330, "edible_ratio": 1.00, "src": "中国食物成分表(猪肉肥瘦), 肉糜按肥瘦计"},
+    "猪里脊":   {"kcal_per_100g": 155, "edible_ratio": 1.00, "src": "中国食物成分表(猪里脊)"},
+    "鸡胸肉":   {"kcal_per_100g": 133, "edible_ratio": 1.00, "src": "中国食物成分表(鸡胸脯肉)"},
+    "鸡腿":     {"kcal_per_100g": 181, "edible_ratio": 0.69, "src": "中国食物成分表(鸡腿), 带骨可食部约69%"},
+    "鸡腿肉":   {"kcal_per_100g": 190, "edible_ratio": 1.00, "src": "去骨鸡腿肉, 近似中国食物成分表鸡腿可食部"},
+    "鸡蛋":     {"kcal_per_100g": 144, "edible_ratio": 0.88, "src": "中国食物成分表(鸡蛋)"},
+
+    "鲈鱼":     {"kcal_per_100g": 105, "edible_ratio": 0.58, "src": "中国食物成分表(鲈鱼), 整鱼可食部约58%"},
+    "牛蛙":     {"kcal_per_100g": 93,  "edible_ratio": 0.60, "src": "USDA(frog legs)近似, 整只可食约60%"},
+    "虾仁":     {"kcal_per_100g": 90,  "edible_ratio": 1.00, "src": "中国食物成分表(河虾/虾仁), 高蛋白低脂, 嘌呤偏高"},
+    "鳜鱼":     {"kcal_per_100g": 117, "edible_ratio": 0.61, "src": "中国食物成分表(鳜鱼/桂鱼), 整鱼可食部约61%, 少刺"},
+    "银鱼":     {"kcal_per_100g": 105, "edible_ratio": 1.00, "src": "中国食物成分表(银鱼), 整条食用"},
+
+    "豆干":     {"kcal_per_100g": 140, "edible_ratio": 1.00, "src": "中国食物成分表(豆腐干)"},
+    "油面筋":   {"kcal_per_100g": 490, "edible_ratio": 1.00, "src": "中国食物成分表(油面筋), 油炸故热量高"},
+
+    "干黑木耳": {"kcal_per_100g": 265, "edible_ratio": 1.00, "src": "中国食物成分表(木耳/干), 泡发后体积涨但干重计热量"},
+
+    "白米":     {"kcal_per_100g": 346, "edible_ratio": 1.00, "src": "中国食物成分表(稻米/生), 熟米饭约116/100g"},
+    "糙米":     {"kcal_per_100g": 348, "edible_ratio": 1.00, "src": "中国食物成分表(糙米/生), 全谷物、纤维与GI优于白米"},
+    "杂粮米":   {"kcal_per_100g": 350, "edible_ratio": 1.00, "src": "糙米/小米/燕麦/杂豆混合近似值, 全谷物占比高"}
+  },
+  "unit_to_gram": {
+    "油面筋_个": 3,
+    "鸡蛋_个": 50,
+    "鲈鱼_条": 600,
+    "_note": "dishes.json 中非克单位按此换算成克再算热量；'1条(约600g)'类直接取括号内克数。"
+  },
+  "method_addon": {
+    "_note": "每道菜(2人2顿整锅)烹饪额外油糖估算；oil/sugar 单位 g，热量按 油9/g、糖4/g。",
+    "清蒸":         {"oil_g": 5,  "sugar_g": 0},
+    "白灼":         {"oil_g": 3,  "sugar_g": 0},
+    "烧":           {"oil_g": 18, "sugar_g": 2},
+    "清炒":         {"oil_g": 18, "sugar_g": 0},
+    "爆炒":         {"oil_g": 25, "sugar_g": 5},
+    "红烧":         {"oil_g": 22, "sugar_g": 15},
+    "红烧_吸油重":  {"oil_g": 45, "sugar_g": 12, "applies_to": ["hongshao_qiezi"], "note": "茄子吸油重，单独加成"}
+  },
+  "constants": {"kcal_per_g_oil": 9, "kcal_per_g_sugar": 4}
+}
