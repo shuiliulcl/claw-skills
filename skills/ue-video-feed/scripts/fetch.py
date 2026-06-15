@@ -44,10 +44,12 @@ def _resolve_lark_cmd():
 
 _LARK_CMD = _resolve_lark_cmd()
 
+# 资源标识由 config.json 提供;load_config 会在启动阶段把它们填进来。
+# CHANNEL_ID 默认指 Unreal Engine 官方频道,config 里可改成别的频道。
 CHANNEL_ID = "UCBobmJyzsJ6Ll7UbfhI4iwQ"
-BASE_TOKEN = "SpvXbLleeaQQMusl2bQcd04pncc"
-TABLE_ID = "tblhyTM6a1bDlybm"
-USER_OPEN_ID = "ou_2b6334604d63123d4dc232d596e9d46d"
+BASE_TOKEN = None
+TABLE_ID = None
+USER_OPEN_ID = None
 CONFIG_DIR = Path(os.path.expandvars(r"%USERPROFILE%\.config\ue-video-feed"))
 CONFIG_PATH = CONFIG_DIR / "config.json"
 UPLOADS_CACHE = CONFIG_DIR / "uploads_playlist.txt"
@@ -60,17 +62,31 @@ def log(msg):
 
 
 def load_config():
+    """读 config.json,把个人化字段(base_token/table_id/user_open_id/channel_id)填到模块全局。
+    缺失必填项 → exit 2。anthropic_* 字段缺失时回退到环境变量。
+    """
+    global BASE_TOKEN, TABLE_ID, USER_OPEN_ID, CHANNEL_ID
     if not CONFIG_PATH.exists():
         log(
             f"配置文件不存在: {CONFIG_PATH}\n"
-            f"请创建该文件,内容:\n"
-            f'  {{"youtube_api_key": "你的_API_KEY"}}'
+            f"请创建该文件,参考 skill 目录下 config.template.json"
         )
         sys.exit(2)
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    if not cfg.get("youtube_api_key"):
-        log(f"配置文件 {CONFIG_PATH} 缺少 youtube_api_key 字段")
+    # 必填:youtube_api_key + base_token + table_id + user_open_id
+    required = ("youtube_api_key", "base_token", "table_id", "user_open_id")
+    missing = [k for k in required if not cfg.get(k)]
+    if missing:
+        log(
+            f"配置文件 {CONFIG_PATH} 缺少必填字段: {', '.join(missing)}\n"
+            f"请参考 skill 目录下 config.template.json 补齐"
+        )
         sys.exit(2)
+    BASE_TOKEN = cfg["base_token"]
+    TABLE_ID = cfg["table_id"]
+    USER_OPEN_ID = cfg["user_open_id"]
+    if cfg.get("channel_id"):
+        CHANNEL_ID = cfg["channel_id"]
     # anthropic key/url/model 可选,config 缺失时回退到环境变量
     if not cfg.get("anthropic_api_key"):
         env_key = (
@@ -85,7 +101,6 @@ def load_config():
             "ANTHROPIC_BASE_URL", "https://api.anthropic.com"
         ).rstrip("/")
     if not cfg.get("anthropic_model"):
-        # 官方 Anthropic 用带日期版的 ID,PaperHub 等中转用短名
         is_official = "api.anthropic.com" in cfg["anthropic_base_url"]
         cfg["anthropic_model"] = (
             "claude-haiku-4-5-20251001" if is_official else "claude-haiku-4-5"

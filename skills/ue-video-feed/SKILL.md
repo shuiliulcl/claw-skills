@@ -22,20 +22,25 @@ python "C:\Users\banqiang\.claude\skills\ue-video-feed\scripts\fetch.py"
 
 ## 前置条件
 
-1. **本地配置文件** `%USERPROFILE%\.config\ue-video-feed\config.json` 存在,内容:
+1. **本地配置文件** `%USERPROFILE%\.config\ue-video-feed\config.json` 存在,必填字段:
    ```json
    {
      "youtube_api_key": "你的_YOUTUBE_DATA_API_V3_KEY",
-     "anthropic_api_key": "你的_ANTHROPIC_KEY (可选,有则自动翻译中文标题;无则留空)"
+     "base_token": "你的飞书 Base token",
+     "table_id": "你的目标 table_id",
+     "user_open_id": "DM 推送目标的飞书 open_id"
    }
    ```
+   可选字段:`channel_id`(默认 UE 官方频道)、`anthropic_api_key` / `anthropic_base_url` / `anthropic_model`(用于自动翻译中文标题,缺失时回退到环境变量)。完整模板见 skill 目录下 `config.template.json`。
 2. **lark-cli 已用 user 身份登录**(`lark-cli auth status` 显示 user identity ready),user scope 必须包含 `base:record:read`、`base:record:create`。
 3. **lark-cli bot 身份 ready**,bot 用于 DM 推送(papergames 组织限制了 user 的 `im:message.send_as_user` scope,所以 IM 推送走 bot,不要试图加这个 user scope)。
 4. Python 3.7+ 在 PATH 中。
 
 ## 关键资源
 
-- **频道**: Unreal Engine 官方 - `UCBobmJyzsJ6Ll7UbfhI4iwQ`
+所有这些都从 config.json 读取,以下值是当前 papergames 实例配置(其他设备 / 其他人 fork 时改 config 即可):
+
+- **频道**: Unreal Engine 官方 - `UCBobmJyzsJ6Ll7UbfhI4iwQ`(`channel_id` 默认值)
 - **Base**: `SpvXbLleeaQQMusl2bQcd04pncc` / 表 `tblhyTM6a1bDlybm`(URL: https://papergames.feishu.cn/base/SpvXbLleeaQQMusl2bQcd04pncc)
 - **私聊接收人**: 半墙 - `ou_2b6334604d63123d4dc232d596e9d46d`
 

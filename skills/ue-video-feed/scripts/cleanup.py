@@ -10,9 +10,8 @@ from pathlib import Path
 
 # 复用 fetch.py 的常量与工具
 sys.path.insert(0, str(Path(__file__).parent))
+import fetch  # noqa: E402
 from fetch import (  # noqa: E402
-    BASE_TOKEN,
-    TABLE_ID,
     MIN_DURATION_SEC,
     is_dev_relevant,
     log,
@@ -46,9 +45,9 @@ def fetch_all_records():
                 "base",
                 "+record-list",
                 "--base-token",
-                BASE_TOKEN,
+                fetch.BASE_TOKEN,
                 "--table-id",
-                TABLE_ID,
+                fetch.TABLE_ID,
                 "--field-id",
                 "视频ID",
                 "--field-id",
@@ -141,9 +140,9 @@ def batch_mark_ignored(record_ids):
                 "base",
                 "+record-batch-update",
                 "--base-token",
-                BASE_TOKEN,
+                fetch.BASE_TOKEN,
                 "--table-id",
-                TABLE_ID,
+                fetch.TABLE_ID,
                 "--json",
                 json.dumps(payload, ensure_ascii=False),
                 "--as",
@@ -158,6 +157,7 @@ def batch_mark_ignored(record_ids):
 
 
 def main():
+    fetch.load_config()  # 填充 fetch.BASE_TOKEN / TABLE_ID 等
     records = fetch_all_records()
     log(f"Base 共 {len(records)} 条记录")
 

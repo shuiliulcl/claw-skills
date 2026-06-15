@@ -1,6 +1,12 @@
 {
-  "_comment": "复制到 %USERPROFILE%\\.config\\ue-video-feed\\config.json,填入对应 key。anthropic 部分缺失时会读 ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY/ANTHROPIC_BASE_URL 等环境变量。",
+  "_comment": "复制到 %USERPROFILE%\\.config\\ue-video-feed\\config.json,填入对应字段。anthropic 部分缺失时会读 ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY/ANTHROPIC_BASE_URL 等环境变量。",
+
   "youtube_api_key": "AIza...你的_YOUTUBE_KEY",
+  "channel_id": "UCBobmJyzsJ6Ll7UbfhI4iwQ (默认 Unreal Engine 官方频道,可换其他频道 ID)",
+  "base_token": "Spv...你的飞书多维表格 Base token",
+  "table_id": "tbl...你的目标表 table_id",
+  "user_open_id": "ou_...DM 推送目标的飞书 open_id (可用 lark-cli auth status 拿自己的)",
+
   "anthropic_api_key": "(可选) 直接 Anthropic key 或 PaperHub 等中转 token,留空则读环境变量",
   "anthropic_base_url": "(可选) 默认 https://api.anthropic.com;走 PaperHub 中转填 https://tc-paperhub.diezhi.net/anthropic",
   "anthropic_model": "(可选) 默认 claude-haiku-4-5-20251001(官方)/claude-haiku-4-5(中转)"
