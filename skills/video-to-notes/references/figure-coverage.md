@@ -96,6 +96,80 @@ writer 跑完后,主线程必须按这个清单走一遍:
 
 每张耗时:grep + ffmpeg 提 3 张候选 + Read 验证 ≈ 2-3 分钟。5 张总共 ~15 分钟。
 
+## Inside Unreal StateTree 的补图记录:**场景类型决定流程**
+
+BlackEye 是**单人演讲 + slide**, scene 检测命中率高, 补图只是补盲区。StateTree 这一篇是**4-5 嘉宾 podcast + 嘉宾偶尔屏幕共享**, 完全是另一种情况:
+
+| 维度 | BlackEye(单人演讲) | StateTree(podcast) |
+|---|---|---|
+| 候选总数 | ~30 张 | 42 张 |
+| 实际 VALUE 数 | ~10 张 | **4 张** |
+| 命中率 | ~33% | **~10%** |
+| 候选构成 | slide 切换 + UI 演示 | 5 人格栅 / 单人镜头 / UE logo 转场 / 5 张游戏画面 / 偶尔屏幕共享 |
+| 写作前能不能用 | 能 | **不能, 必须先补抽** |
+
+**根因**: scene 检测的 0.3 阈值是为"slide 切换"设计的。podcast 视频里 webcam 切换(主持人镜头 ↔ 全员格栅 ↔ 单嘉宾近景)同样能触发 0.3 阈值, 但这些镜头是没信息的。**屏幕共享内容反而是"画面缓慢变化"(滚动 / 鼠标移动 / 下拉展开), 触发不了阈值**, 所以真正有内容的帧抽不到。
+
+### Podcast 类的正确流程: 跳过 scene 检测, 直接概念锚点定向抽
+
+不要先跑 extract_keyframes 再补抽 — 跑出来的候选池 90% 是 talking head, writer 在干瘪池子上写完会觉得"没图也行"。直接:
+
+```bash
+# 1. transcript grep 找核心概念第一次被讲的时间
+grep -nE "schema|transition|event|parameter|debugger|let me show|demo time" transcript.txt | head -30
+
+# 2. 挑 8-15 个时间点, 每个核心章节 1-2 个
+# 选点策略:
+#   - 每个核心概念第一次被讲(grep 第一条)
+#   - "let me show" / "if you click" 字样的时间(指 demo 操作)
+#   - demo 段开始后 1-2 分钟(等画面稳定)
+#   - demo 收尾总览镜头
+
+# 3. 一次性 ffmpeg 单帧抽
+for t in 00:16:30 00:19:10 00:22:40 00:25:40 00:28:50 00:44:30 00:50:30 01:04:30; do
+  ffmpeg -ss "$t" -i full_1080p_videoonly.mp4 -frames:v 1 -q:v 2 -y \
+    "figures_full/renamed/slide_${t//:/-}.jpg"
+done
+```
+
+实测: StateTree 选了 13 个时间点, 11 张是 VALUE(命中率 84.6%), 写作前候选池就够用了。
+
+### 怎么识别 podcast 类视频(写代码前 30 秒判断)
+
+判断标志(任一满足):
+
+- **Channel = "Unreal Engine"** 且 title 含 `Inside Unreal` / `Twitch`
+- 视频时长 ≥ 90 分钟 + 多人嘉宾(看 yt-dlp metadata 或字幕第一段)
+- 字幕第一段内出现 `introduce our guests` / `joining us today` / `let's go around the room` / 多次 `>>` 切换说话人
+
+确认是 podcast 后, **直接跳到概念锚点定向抽**, 不跑 extract_keyframes(省 5-10 分钟 + 几百 MB 临时文件)。
+
+### 候选池预评估(写作前必做, 哪种类型都做)
+
+抽完帧不要直接 writer, 先看候选池**密度**:
+
+```bash
+ls figures_full/renamed/slide_*.jpg | wc -l                              # 总数
+ls figures_full/renamed/slide_*.jpg | awk -F'[_.-]' '{print int($2)}' | sort -n | uniq -c   # 每 10 分钟分布
+```
+
+判断:
+- 单人演讲: 每 10 分钟 ≥ 2 张, 总 ≥ 20 张 → OK
+- Demo 录屏: 每 10 分钟 ≥ 1 张, 总 ≥ 12 张 → OK
+- Podcast: 单看候选池数没用, 看**每个核心章节有没有 ≥ 1 张实质内容图**
+
+某段 0 张但 transcript 表明有屏幕共享 → 当场补, 别等 reviewer 阶段。
+
+### 历史数据点(用来校准命中率预期)
+
+| 视频 | 类型 | 候选 | VALUE | 命中率 | 最终笔记图数 | 章节图覆盖 |
+|---|---|---|---|---|---|---|
+| Projectiles(Inside Unreal) | podcast(单人主讲多) | ~30 | ~12 | ~40% | 10 张 | 高 |
+| BlackEye(Camera) | 单人演讲 | ~30 | ~10 | ~33% | 5+5=10 张 | 中 |
+| StateTree(Inside Unreal) | **podcast(4 嘉宾轮流讲)** | 42 | **4** | **9.5%** | 11 张(8 张定向补抽) | 60% |
+
+Projectiles 比 StateTree 命中率高的原因: 演讲者有 ~半时间在屏幕共享 demo, 而 StateTree 的 4 嘉宾大部分时间是"对着摄像头讨论"。**嘉宾越多, 屏幕共享时间占比越低, scene 检测越没用**。
+
 ## 反例:什么时候不要补
 
 - 章节是**纯概念**(比如"为什么要这样设计"、"取舍讨论"),没有视觉对应,补图就是凑数

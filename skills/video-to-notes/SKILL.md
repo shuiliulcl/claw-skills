@@ -1,6 +1,6 @@
 ---
 name: video-to-notes
-description: 把英文视频(YouTube / tc-video.diezhi.net 内网 / 本地 mp4)整理成中文图文笔记, 可选发布到飞书 wiki。当用户说"把这个视频做成笔记""YouTube 视频整理""演讲转成中文文档""GDC video to notes""视频转飞书文档""Inside Unreal 整理""把这个 tc-video 整理"等, 或给出 YouTube URL / tc-video URL/ID / 本地视频路径想要图文笔记时使用。流程: 抽字幕 → 下视频(720p) → 场景检测抽帧 → Sonnet writer + reviewer → (可选)发布到飞书 wiki。tc-video 内网源走 [`tc-video`](../tc-video/SKILL.md) skill 下载后接入主流程。已经踩过的坑(yt-dlp dash + EJS / 飞书占位图陷阱 / 标题三处绑死 / writer 抄事实 / scene 检测对 UI 演示盲区导致章节漏图)在 references/ 下都有详细记录, 不要重新踩。
+description: 把英文视频(YouTube / tc-video.diezhi.net 内网 / 本地 mp4)整理成中文图文笔记, 可选发布到飞书 wiki。当用户说"把这个视频做成笔记""YouTube 视频整理""演讲转成中文文档""GDC video to notes""视频转飞书文档""Inside Unreal 整理""把这个 tc-video 整理"等, 或给出 YouTube URL / tc-video URL/ID / 本地视频路径想要图文笔记时使用。流程: 抽字幕 → 下视频(720p) → 场景检测抽帧 → Sonnet writer + reviewer → (可选)发布到飞书 wiki。tc-video 内网源走 [`tc-video`](../tc-video/SKILL.md) skill 下载后接入主流程。已经踩过的坑(yt-dlp dash + EJS / 飞书占位图陷阱 / 标题三处绑死 / writer 抄事实 / writer 硬凑信息(字卡 caption / 否定句 / 不带链接的外部引用) / scene 检测对 UI 演示盲区导致章节漏图)在 references/ 下都有详细记录, 不要重新踩。
 ---
 
 # Video → 中文图文笔记 工作流
@@ -138,6 +138,18 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/extract_keyframes
 
 ## Phase 3 · 场景检测抽关键帧
 
+**先判断视频类型**, 决定是不是要走 scene 检测:
+
+| 类型 | 画面特征 | scene 检测命中率 | 推荐做法 |
+|---|---|---|---|
+| 单人演讲 + slide(GDC / Unreal Fest 主舞台) | 演讲者 + 大幅 slide 切换 | ~70% | 直接跑 extract_keyframes |
+| 单人 demo 录屏(教程 / 工具讲解) | 单一屏幕共享, UI 慢速变化 | ~30% | 跑 + 后续定向补抽 |
+| **多嘉宾 podcast(Inside Unreal 等)** | 4-5 人 webcam 格栅 + 偶尔屏幕共享 | **~10%** | **直接跳 scene 检测, 走概念锚点定向抽** |
+
+判断标志: yt-dlp metadata 里 `channel == "Unreal Engine"` 且 title 含 `Inside Unreal` / `Twitch` / `Livestream`, 或字幕第一段出现"introduce our guests" / "joining us today" — **就是 podcast 类**, 直接跳到下面"概念锚点定向抽"。
+
+### 标准路径(单人演讲 / demo 录屏)
+
 ```bash
 python scripts/extract_keyframes.py full_720p_videoonly.mp4 figures_full/
 ```
@@ -150,7 +162,50 @@ python scripts/extract_keyframes.py full_720p_videoonly.mp4 figures_full/
 
 典型产出 25-30 张候选帧 / 1.5h 视频。
 
-**已知盲区**: scene 检测对 UI/Panel 演示、同场景 demo 渐进切换抽不到 — 视频背景不变, 只有 panel 内 knob/slider 在动, 阈值打不出来。这种章节(专属界面 / 工具截图 / Sequencer / 节点编辑器演示)候选池可能为 0。**不在 Phase 3 一开始密抽**(每 60s 一张会让候选从 30 涨到 90, writer 看图成本翻 3 倍), 而是在 Phase 5 reviewer 扫描发现漏图后**定向补抽**。详见 [references/figure-coverage.md](references/figure-coverage.md)。
+### 概念锚点定向抽(podcast 类视频专用,也可作单人 demo 的补抽)
+
+跳过 scene 检测, 直接 grep 字幕找概念时间点, ffmpeg 单帧提:
+
+```bash
+# 1. 列出本片要讲的核心概念关键词(看 transcript 知道)
+# 例: StateTree 这一篇是 schema/transitions/events/parameters/rewind debugger
+grep -nE "schema|transition|event|let me show|demo|debugger" transcript.txt | head -30
+
+# 2. 选 8-15 个时间点(每个核心概念 1-2 个), 一次抽完
+for t in 00:16:30 00:19:10 00:22:40 00:25:40 00:28:50 00:44:30 00:50:30 01:04:30; do
+  ffmpeg -ss "$t" -i full_1080p_videoonly.mp4 -frames:v 1 -q:v 2 -y \
+    "figures_full/renamed/slide_${t//:/-}.jpg"
+done
+```
+
+时长 < 1 分钟。命中率 ~85%(对照: scene 检测在 podcast 上 ~10%, 差 8 倍)。
+
+**典型时间点选择策略**:
+- demo 段开始后 1-2 分钟(等画面稳定)
+- 每个核心概念**第一次被讲到**的时间点(grep "schema" 第一条)
+- 字幕里"演示/选项展开"信号: "let me show", "if you click", "look at this dropdown", "this is where you..."
+- demo 收尾的总览镜头(回到树根)
+
+**已知盲区**(标准路径下): scene 检测对 UI/Panel 演示、同场景 demo 渐进切换抽不到 — 视频背景不变, 只有 panel 内 knob/slider 在动, 阈值打不出来。这种章节(专属界面 / 工具截图 / Sequencer / 节点编辑器演示)候选池可能为 0。详见 [references/figure-coverage.md](references/figure-coverage.md)。
+
+### 候选池预评估(Phase 4 之前必做)
+
+抽完帧 **不要直接跑 writer**, 先看候选池里**实质内容图**有多少:
+
+```bash
+# 列出所有候选, 按时间排
+ls figures_full/renamed/slide_*.jpg | sort
+
+# 时间分布: 看每 10 分钟有几张
+ls figures_full/renamed/slide_*.jpg | awk -F'[_.-]' '{print int($2)}' | sort -n | uniq -c
+```
+
+判断标准:
+- **每 10 分钟 ≥ 2 张候选**: OK, 进 Phase 4
+- **某 10 分钟段 0 张但 transcript 显示有 demo**: **当场补抽**, 不要等 reviewer 发现
+- **整片 < 10 张候选**(podcast 常见): 直接走"概念锚点定向抽"重补一遍, 不要让 writer 在干瘪候选池上写
+
+历史数据点: StateTree (Inside Unreal, podcast) scene 检测出 42 张, 实际 VALUE 4 张, 命中率 9.5%。补抽 13 张定向命中 11 张, 84.6%。最终笔记图 11 张(15 个 H2 章节里 9 章有图, 60% 覆盖, 跟 BlackEye 单人演讲笔记水平相当)。
 
 ## Phase 4 · Sonnet writer 子 Agent
 
@@ -193,6 +248,10 @@ grep -nE "数字|API名|可疑拼写" transcript.txt
 
 **重点核对 callout / blockquote** — 这两个区域最容易被 writer 从风格基准里抄错事实(URL / 日期 / 时长 / 人名). 即使 writer prompt 已经警告过, 主线程 reviewer 还是要扫一遍.
 
+**处理 writer 列出的"待查外部引用"** — writer 在最终消息会列出"提到了但没拿到 URL"的外部演讲 / 工具 / 项目. 主线程逐条搜(YouTube 频道列表 / Google / 演讲者主页 / `yt-dlp --skip-download --write-info-json` 看视频 description), 拿到链接后用 Edit 在笔记里把"演讲者+标题"换成 `[演讲者: 标题](URL)`. **没找到的整段删掉**, 不要留"未公开链接"这种否定句.
+
+**最后一遍质量扫**: 笔记里有没有 (a) 字卡 caption("标志着从概念切到实操"这种)、(b) 纠错痕迹("auto-CC 误识别为 X, 实际是 Y")、(c) 否定句("演讲中没有公开 GitHub 仓库") — writer prompt 已经禁了, 万一漏网就 Edit 删掉. 详见 [references/writer-agent-prompt.md](references/writer-agent-prompt.md) "内容质量原则"节.
+
 ### 5b. 配图覆盖扫描(必做, 不要跳)
 
 writer 选图凭"实质帮助"原则不会凑数, 但**它不知道候选池本身有缺**。专属 UI / Panel / 工具演示 / Sequencer / 节点编辑器 / 对话场景这种章节 scene 检测可能根本没抽到候选, writer 也就写完没图。**主线程必须扫一遍**:
@@ -205,9 +264,13 @@ grep -n "!\[" notes_full.md
 # 对照: 哪些 H2 章节 0 张图? 是否本应有图?
 ```
 
-判断"本应有图"的标准、定向补抽的具体命令、BlackEye 实际补图记录, 全在 [references/figure-coverage.md](references/figure-coverage.md)。
+**最容易踩的坑**: writer 在最终消息列出"建议补图: 章节 X / Y / Z, 候选池里没合适的", 主线程**必须 100% 执行补抽**, 不要因为"反正候选池就这些没办法"就放过 — writer 这么提是因为它**判断这些章节本应有图**, 不是诉苦。补抽流程: grep 字幕找概念时间点 → ffmpeg 单帧抽 → Read 验证 → Edit 加进笔记. 详见 [references/figure-coverage.md](references/figure-coverage.md)。
 
-发现遗漏就用 Edit 修。一般文字补漏 2-5 处, 图片补抽 0-5 张。
+判断"本应有图"的标准、podcast 类视频专用流程(scene 检测命中率仅 ~10%, 必须走概念锚点定向抽)、定向补抽的具体命令、历史命中率数据点, 全在 [references/figure-coverage.md](references/figure-coverage.md)。
+
+发现遗漏就用 Edit 修。常见补抽规模:
+- 单人演讲(BlackEye 类): 文字补漏 2-5 处, 图片补抽 0-5 张
+- **Podcast(Inside Unreal 类)**: 图片补抽 **8-12 张**(基本就是写作前应该补但没补的那批)
 
 ## Phase 6 · (可选) 发布到飞书 wiki
 
