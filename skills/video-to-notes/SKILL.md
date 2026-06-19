@@ -250,6 +250,16 @@ grep -nE "数字|API名|可疑拼写" transcript.txt
 
 **处理 writer 列出的"待查外部引用"** — writer 在最终消息会列出"提到了但没拿到 URL"的外部演讲 / 工具 / 项目. 主线程逐条搜(YouTube 频道列表 / Google / 演讲者主页 / `yt-dlp --skip-download --write-info-json` 看视频 description), 拿到链接后用 Edit 在笔记里把"演讲者+标题"换成 `[演讲者: 标题](URL)`. **没找到的整段删掉**, 不要留"未公开链接"这种否定句.
 
+**外部 URL 版本/状态核对** ⚠️ — 对每个 writer 已经填进笔记的外部 URL(Fab listing / GitHub repo / 工具产品页 / 文档站 等), 必须**对照 transcript 里演讲者本人对该资源的描述**, 检查:
+
+- 演讲者是不是把这个资源分成"基础版本(已公开)" vs "扩展/演示版本(未公开/即将发布)"两种状态?
+- 笔记当前引用的 URL 指向的是哪一种?
+- 演讲者展示的具体内容(本笔记里那些 demo / 配图)在当前外网这个 URL 下**真能下载到**吗?
+
+如果演讲者明说"this is what we've been working on the past few months / next release coming / not public yet / stand by", 那即使外网有同名资源, 也**不能**把笔记写成"完整配置随样本开放"这种暗示"演讲展示=外网下载"的措辞. 改成"<URL> 是基础版本, 演讲展示的扩展工具集尚未公开, 演讲者表示在下次 release 一并放出".
+
+**踩坑记录**: StateTree 笔记第一版引用 [Project Titan Fab listing](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) 时写"完整 StateTree 配置随样本一起开放" — 但 transcript [00:13:44] Sebastian 原话是"next Titan release probably coming in a couple of months", 演讲时(2026-02-05)Fab 上的还是 2024 art jam 版, **不含**演讲展示的 NPC/对话/任务工具集. 用户对照原话才发现误导. **第一版笔记里所有外部 URL 都要这样过一遍**, 不要默认"搜到同名就是同一个东西".
+
 **最后一遍质量扫**: 笔记里有没有 (a) 字卡 caption("标志着从概念切到实操"这种)、(b) 纠错痕迹("auto-CC 误识别为 X, 实际是 Y")、(c) 否定句("演讲中没有公开 GitHub 仓库") — writer prompt 已经禁了, 万一漏网就 Edit 删掉. 详见 [references/writer-agent-prompt.md](references/writer-agent-prompt.md) "内容质量原则"节.
 
 ### 5b. 配图覆盖扫描(必做, 不要跳)
