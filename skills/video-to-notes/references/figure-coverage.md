@@ -164,9 +164,11 @@ ls figures_full/renamed/slide_*.jpg | awk -F'[_.-]' '{print int($2)}' | sort -n 
 
 | 视频 | 类型 | 候选 | VALUE | 命中率 | 最终笔记图数 | 章节图覆盖 |
 |---|---|---|---|---|---|---|
-| Projectiles(Inside Unreal) | podcast(单人主讲多) | ~30 | ~12 | ~40% | 10 张 | 高 |
+| Projectiles(Inside Unreal) | podcast(单人主讲多, 大量屏幕共享) | ~30 | ~12 | ~40%(估) | 10 张 | 高 |
 | BlackEye(Camera) | 单人演讲 | ~30 | ~10 | ~33% | 5+5=10 张 | 中 |
 | StateTree(Inside Unreal) | **podcast(4 嘉宾轮流讲)** | 42 | **4** | **9.5%** | 11 张(8 张定向补抽) | 60% |
+
+> 注: Projectiles 的命中率是回顾性估计, 不是实测; BlackEye / StateTree 是实测数。后续跑新视频时如有更精确数据请回填本表。
 
 Projectiles 比 StateTree 命中率高的原因: 演讲者有 ~半时间在屏幕共享 demo, 而 StateTree 的 4 嘉宾大部分时间是"对着摄像头讨论"。**嘉宾越多, 屏幕共享时间占比越低, scene 检测越没用**。
 
