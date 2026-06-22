@@ -1,4 +1,4 @@
----
+﻿---
 name: openclaw-unreal-commit-watch
 description: Pull updates for a locally cloned Unreal Engine repository, analyze commits from the last 24 hours, and generate a daily Markdown report with focus sections for Animation, Gameplay, and AI related modules. Use this when OpenClaw needs a recurring Unreal source update digest from a local git repository.
 ---
@@ -85,7 +85,21 @@ $jsonPath = $reportPath -replace '\.md$', '.json'
 $data = Get-Content -Raw -Encoding UTF8 $jsonPath | ConvertFrom-Json
 ```
 
-拿到 `$data.commits` 数组后，**从头自己构建报告文本**，不复用 md 文件任何内容。
+JSON 结构为多分支格式：`$data.branches` 是数组，每项有 `branch`、`commits`、`focus`（Animation/Gameplay/AI）、`other`、`skipped` 字段。
+
+```
+$data.branches | ForEach-Object {
+    $_.branch          # 分支名，如 "ue5-main"
+    $_.commits         # 该分支所有 commit
+    $_.focus.Animation # 动画相关 commit
+    $_.focus.Gameplay  # Gameplay 相关 commit
+    $_.focus.AI        # AI 相关 commit
+    $_.skipped         # true = 该分支跳过（remote 不存在等）
+}
+```
+
+拿到数据后，**从头自己构建报告文本**，不复用 md 文件任何内容。
+每个分支独立一组 section，参考 `prompts/report_prompt.md` 中的报告格式。
 
 **分类规则（匹配 subject 或文件路径，大小写不敏感）：**
 - 动画：Animation、Control Rig、Sequencer、Pose Search、Motion Matching、Retarget、UAF、SkeletalMesh、AnimGraph、Montage
@@ -151,7 +165,7 @@ $data = Get-Content -Raw -Encoding UTF8 $jsonPath | ConvertFrom-Json
 
 ## 备注
 
-- 分析基准：origin/ue5-main，最近 24 小时
+- 分析基准：origin/ue5-main、origin/ue6-main，最近 24 小时
 - 低价值提交已过滤，共 N 条
 ```
 

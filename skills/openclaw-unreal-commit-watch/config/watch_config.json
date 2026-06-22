@@ -1,5 +1,6 @@
 {
-  "repo_path": "F:/UnrealEngine",
+  "repo_path": "E:/UnrealEngine",
+  "branches": ["ue5-main", "ue6-main"],
   "lookback_hours": 24,
   "output_dir": "output",
   "fetch_retry_count": 3,

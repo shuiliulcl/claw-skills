@@ -784,6 +784,15 @@ $topCommitCount = [int]$config.top_commit_count_per_focus
 $topFileCount = [int]$config.top_file_count_per_focus
 $script:ImportanceThreshold = [Math]::Max(0, [int]$config.importance_threshold)
 
+# 支持多分支：优先读 branches 数组，兼容旧版（无 branches 字段时 fall back 到 HEAD）
+$configBranches = @()
+if ($config.branches -and $config.branches.Count -gt 0) {
+    $configBranches = @($config.branches | ForEach-Object { [string]$_ } | Where-Object { $_ })
+}
+if ($configBranches.Count -eq 0) {
+    $configBranches = @("")  # 空字符串 = 使用当前 HEAD 分支逻辑
+}
+
 if (-not (Test-Path -LiteralPath $resolvedRepo)) {
     throw "Repository path does not exist: $resolvedRepo"
 }
@@ -795,172 +804,220 @@ $repoRoot = $repoCheck.Output
 $generatedAt = Get-Date
 $sinceTime = $generatedAt.AddHours(-1 * $hours)
 $sinceSpec = $sinceTime.ToString("yyyy-MM-dd HH:mm:ss")
-$notes = New-Object System.Collections.Generic.List[string]
+$globalNotes = New-Object System.Collections.Generic.List[string]
 
-$branchResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "HEAD")
-$branch = $branchResult.Output
-$beforeHead = (Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--short", "HEAD")).Output
-$statusResult = Invoke-Git -Repo $resolvedRepo -Arguments @("status", "--porcelain")
-$isDirty = [bool]$statusResult.Output
-$upstreamResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") -AllowFailure
-$upstream = if ($upstreamResult.ExitCode -eq 0) { $upstreamResult.Output } else { "" }
-$upstreamRemoteName = if ($upstream -and $upstream.Contains("/")) { $upstream.Split("/")[0] } else { "origin" }
-$remoteUrlResult = Invoke-Git -Repo $resolvedRepo -Arguments @("remote", "get-url", $upstreamRemoteName) -AllowFailure
-if ($remoteUrlResult.ExitCode -ne 0 -and $upstreamRemoteName -ne "origin") {
-    $remoteUrlResult = Invoke-Git -Repo $resolvedRepo -Arguments @("remote", "get-url", "origin") -AllowFailure
-}
+# 获取 remote URL（只需一次）
+$remoteUrlResult = Invoke-Git -Repo $resolvedRepo -Arguments @("remote", "get-url", "origin") -AllowFailure
 $repoRemoteUrl = if ($remoteUrlResult.ExitCode -eq 0) { $remoteUrlResult.Output } else { "" }
 $repoWebBaseUrl = Get-CommitWebBaseUrl -RemoteUrl $repoRemoteUrl
 
+# 执行一次全量 fetch
 $fetchResult = Invoke-GitWithRetry -Repo $resolvedRepo -Arguments @("fetch", "--all", "--prune") -RetryCount $fetchRetryCount -DelaySeconds $fetchRetryDelaySeconds
-$pullStatus = "skipped"
-$fetchStatus = "completed"
-
 if ($fetchResult.ExitCode -ne 0) {
     throw "git fetch failed after $($fetchResult.Attempts) attempt(s). Details: $($fetchResult.Output)"
 }
+$fetchStatus = "completed"
 
-if ($branch -eq "HEAD") {
-    $notes.Add("Pull skipped because the repository is in detached HEAD state.")
-}
-elseif (-not $upstream) {
-    $notes.Add("Pull skipped because the current branch has no upstream.")
-}
-elseif ($isDirty) {
-    $notes.Add("Pull skipped because the working tree has local changes.")
-}
-else {
-    $pullResult = Invoke-Git -Repo $resolvedRepo -Arguments @("pull", "--ff-only")
-    if ($pullResult.ExitCode -eq 0) {
-        $pullStatus = if ($pullResult.Output) { $pullResult.Output } else { "Already up to date." }
+# 检查工作树状态（只影响 pull，不影响 fetch 分析）
+$currentBranchResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "HEAD")
+$currentBranch = $currentBranchResult.Output
+$statusResult = Invoke-Git -Repo $resolvedRepo -Arguments @("status", "--porcelain")
+$isDirty = [bool]$statusResult.Output
+$beforeHead = (Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--short", "HEAD")).Output
+
+# 尝试 pull 当前分支
+$pullStatus = "skipped"
+if ($currentBranch -eq "HEAD") {
+    $globalNotes.Add("Pull skipped: detached HEAD.")
+} elseif ($isDirty) {
+    $globalNotes.Add("Pull skipped: working tree has local changes.")
+} else {
+    $upstreamResult = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") -AllowFailure
+    if ($upstreamResult.ExitCode -ne 0) {
+        $globalNotes.Add("Pull skipped: no upstream for current branch.")
+    } else {
+        $pullResult = Invoke-Git -Repo $resolvedRepo -Arguments @("pull", "--ff-only")
+        if ($pullResult.ExitCode -eq 0) {
+            $pullStatus = if ($pullResult.Output) { $pullResult.Output } else { "Already up to date." }
+        }
     }
 }
 
 $afterHead = (Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--short", "HEAD")).Output
-$analysisRef = "HEAD"
-if ($upstream) {
-    $analysisRef = $upstream
-    if ($isDirty) {
-        $notes.Add("Commit analysis uses fetched upstream reference $upstream because local changes prevented pull.")
-    }
-}
-$logFormat = "%H%x1f%an%x1f%ad%x1f%s"
-$logResult = Invoke-Git -Repo $resolvedRepo -Arguments @("log", $analysisRef, "--since=$sinceSpec", "--date=iso-strict", "--pretty=format:$logFormat")
-$commitLines = @()
-if ($logResult.Output) {
-    $commitLines = $logResult.Output -split "`n"
-}
 
-$commits = New-Object System.Collections.Generic.List[object]
-foreach ($line in $commitLines) {
-    if (-not $line.Trim()) { continue }
-    $parts = $line -split [char]0x1f
-    if ($parts.Count -lt 4) { continue }
-    $sha = $parts[0]
-    $author = $parts[1]
-    $date = $parts[2]
-    $subject = $parts[3]
-    $fileResult = Invoke-Git -Repo $resolvedRepo -Arguments @("show", "--pretty=format:", "--name-only", "--no-renames", $sha)
-    $files = @()
-    if ($fileResult.Output) {
-        $files = @($fileResult.Output -split "`n" | Where-Object { $_.Trim() })
+# 多分支分析
+$branchResults = New-Object System.Collections.Generic.List[object]
+$logFormat = "%H%x1f%an%x1f%ad%x1f%s"
+
+foreach ($targetBranch in $configBranches) {
+    $branchNotes = New-Object System.Collections.Generic.List[string]
+
+    if ($targetBranch) {
+        $analysisRef = "origin/$targetBranch"
+        $refCheck = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--verify", $analysisRef) -AllowFailure
+        if ($refCheck.ExitCode -ne 0) {
+            $branchNotes.Add("Branch $targetBranch not found (origin/$targetBranch missing). Skipping.")
+            $branchResults.Add([pscustomobject]@{
+                branch       = $targetBranch
+                analysis_ref = $analysisRef
+                commits      = @()
+                focus        = [ordered]@{ Animation = @(); Gameplay = @(); AI = @() }
+                other        = @()
+                authors      = @()
+                notes        = @($branchNotes | ForEach-Object { $_ })
+                skipped      = $true
+            })
+            continue
+        }
+    } else {
+        $upstreamResult2 = Invoke-Git -Repo $resolvedRepo -Arguments @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}") -AllowFailure
+        $upstream2 = if ($upstreamResult2.ExitCode -eq 0) { $upstreamResult2.Output } else { "" }
+        $analysisRef = if ($upstream2) { $upstream2 } else { "HEAD" }
+        $targetBranch = $currentBranch
+        if ($isDirty -and $upstream2) {
+            $branchNotes.Add("Analysis uses $upstream2 (local changes prevented pull).")
+        }
     }
-    $tags = @(Get-TagsForCommit -Subject $subject -Files $files)
-    $commits.Add([pscustomobject]@{
-        sha       = $sha
-        short_sha = Get-ShortSha -Sha $sha
-        author    = $author
-        date      = $date
-        subject   = $subject
-        files     = $files
-        tags      = $tags
-        importance_score = Get-ImportanceScore -Subject $subject -Files $files -Tags $tags
+
+    $logResult = Invoke-Git -Repo $resolvedRepo -Arguments @("log", $analysisRef, "--since=$sinceSpec", "--date=iso-strict", "--pretty=format:$logFormat")
+    $commitLines = @()
+    if ($logResult.Output) { $commitLines = $logResult.Output -split "`n" }
+
+    $commits = New-Object System.Collections.Generic.List[object]
+    foreach ($line in $commitLines) {
+        if (-not $line.Trim()) { continue }
+        $parts = $line -split [char]0x1f
+        if ($parts.Count -lt 4) { continue }
+        $sha     = $parts[0]
+        $author  = $parts[1]
+        $date    = $parts[2]
+        $subject = $parts[3]
+        $fileResult = Invoke-Git -Repo $resolvedRepo -Arguments @("show", "--pretty=format:", "--name-only", "--no-renames", $sha)
+        $files = @()
+        if ($fileResult.Output) { $files = @($fileResult.Output -split "`n" | Where-Object { $_.Trim() }) }
+        $tags = @(Get-TagsForCommit -Subject $subject -Files $files)
+        $commits.Add([pscustomobject]@{
+            sha              = $sha
+            short_sha        = Get-ShortSha -Sha $sha
+            author           = $author
+            date             = $date
+            subject          = $subject
+            files            = $files
+            tags             = $tags
+            importance_score = Get-ImportanceScore -Subject $subject -Files $files -Tags $tags
+        })
+    }
+
+    $focusBuckets = [ordered]@{
+        Animation = New-Object System.Collections.Generic.List[object]
+        Gameplay  = New-Object System.Collections.Generic.List[object]
+        AI        = New-Object System.Collections.Generic.List[object]
+    }
+    $otherCommits = New-Object System.Collections.Generic.List[object]
+    foreach ($commit in $commits) {
+        $matched = $false
+        foreach ($tag in $commit.tags) {
+            if ($focusBuckets.Contains($tag)) { $focusBuckets[$tag].Add($commit); $matched = $true }
+        }
+        if (-not $matched) { $otherCommits.Add($commit) }
+    }
+
+    $branchResults.Add([pscustomobject]@{
+        branch       = $targetBranch
+        analysis_ref = $analysisRef
+        commits      = @($commits | ForEach-Object { $_ })
+        focus        = [ordered]@{
+            Animation = @($focusBuckets.Animation | ForEach-Object { $_ })
+            Gameplay  = @($focusBuckets.Gameplay  | ForEach-Object { $_ })
+            AI        = @($focusBuckets.AI        | ForEach-Object { $_ })
+        }
+        other        = @($otherCommits | ForEach-Object { $_ })
+        authors      = @($commits | Select-Object -ExpandProperty author -Unique | ForEach-Object { $_ })
+        notes        = @($branchNotes | ForEach-Object { $_ })
+        skipped      = $false
     })
 }
 
-$focusBuckets = [ordered]@{
-    Animation = New-Object System.Collections.Generic.List[object]
-    Gameplay  = New-Object System.Collections.Generic.List[object]
-    AI        = New-Object System.Collections.Generic.List[object]
-}
-$otherCommits = New-Object System.Collections.Generic.List[object]
-
-foreach ($commit in $commits) {
-    $matched = $false
-    foreach ($tag in $commit.tags) {
-        if ($focusBuckets.Contains($tag)) {
-            $focusBuckets[$tag].Add($commit)
-            $matched = $true
-        }
-    }
-    if (-not $matched) {
-        $otherCommits.Add($commit)
-    }
-}
-
-$authors = @($commits | Select-Object -ExpandProperty author -Unique)
-$timestamp = $generatedAt.ToString("yyyyMMdd_HHmmss")
+# 生成报告文件
+$timestamp  = $generatedAt.ToString("yyyyMMdd_HHmmss")
 $reportPath = Join-Path $outputRoot "unreal_commit_watch_$timestamp.md"
-$jsonPath = Join-Path $outputRoot "unreal_commit_watch_$timestamp.json"
+$jsonPath   = Join-Path $outputRoot "unreal_commit_watch_$timestamp.json"
 
 $report = New-Object System.Collections.Generic.List[string]
 $report.Add("# " + (Get-Text "report_title"))
 $report.Add("")
 $report.Add("- " + (Get-Text "generated_at") + ": $($generatedAt.ToString("yyyy-MM-dd HH:mm:ss"))")
 $report.Add("- " + (Get-Text "fetch_status") + ": $fetchStatus")
+$report.Add("- " + (Get-Text "window") + ": " + (Get-Text "last_hours_prefix") + " $hours " + (Get-Text "last_hours_suffix"))
 $report.Add("")
 $report.Add("## " + (Get-Text "topline"))
 $report.Add("")
-$report.Add("- " + (Get-Text "total_commits") + ": $($commits.Count)")
-$report.Add("- " + (Get-Text "animation_commits") + ": $($focusBuckets.Animation.Count)")
-$report.Add("- " + (Get-Text "gameplay_commits") + ": $($focusBuckets.Gameplay.Count)")
-$report.Add("- " + (Get-Text "ai_commits") + ": $($focusBuckets.AI.Count)")
-$report.Add("")
-$report.Add("## " + (Get-Text "focus"))
-$report.Add("")
-foreach ($line in (Format-FocusSection -Name "Animation" -Commits $focusBuckets.Animation -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
-    $report.Add([string]$line)
-}
-foreach ($line in (Format-FocusSection -Name "Gameplay" -Commits $focusBuckets.Gameplay -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
-    $report.Add([string]$line)
-}
-foreach ($line in (Format-FocusSection -Name "AI" -Commits $focusBuckets.AI -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
-    $report.Add([string]$line)
-}
-$report.Add("## " + (Get-Text "other"))
-$report.Add("")
-if ($otherCommits.Count -eq 0) {
-    $report.Add("- " + (Get-Text "other_none"))
-}
-else {
-    $otherHigh = @($otherCommits | Where-Object { $_.importance_score -ge $script:ImportanceThreshold } | Sort-Object -Property @("importance_score", "date") -Descending)
-    $otherLowCount = @($otherCommits | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
-    foreach ($commit in $otherHigh) {
-        $report.Add("- $(Get-CompactSubject -Subject $commit.subject)")
-        $report.Add("  - " + (Get-Text "summary") + ": $(Get-CompactSummary -Subject $commit.subject -Tags $commit.tags)")
-        $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $repoWebBaseUrl -Sha $commit.sha))")
+foreach ($br in $branchResults) {
+    $brLabel = if ($br.branch) { $br.branch } else { "current" }
+    if ($br.skipped) {
+        $report.Add("- **$brLabel**: skipped — $($br.notes -join '; ')")
+        continue
     }
-    if ($otherLowCount -gt 0) {
-        $report.Add("- " + (Get-Text "other_low_priority_omitted_prefix") + ": $otherLowCount " + (Get-Text "omitted_suffix"))
-    }
+    $report.Add("- **$brLabel**: " + (Get-Text "total_commits") + " $($br.commits.Count) | " +
+        (Get-Text "animation_commits") + " $($br.focus.Animation.Count) | " +
+        (Get-Text "gameplay_commits") + " $($br.focus.Gameplay.Count) | " +
+        (Get-Text "ai_commits") + " $($br.focus.AI.Count)")
 }
+$report.Add("")
+
+foreach ($br in $branchResults) {
+    $brLabel = if ($br.branch) { $br.branch } else { "current" }
+    if ($br.skipped) { continue }
+
+    $report.Add("---")
+    $report.Add("")
+    $report.Add("## " + (Get-Text "focus") + " — $brLabel")
+    $report.Add("")
+    foreach ($line in (Format-FocusSection -Name "Animation" -Commits $br.focus.Animation -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
+        $report.Add([string]$line)
+    }
+    foreach ($line in (Format-FocusSection -Name "Gameplay" -Commits $br.focus.Gameplay -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
+        $report.Add([string]$line)
+    }
+    foreach ($line in (Format-FocusSection -Name "AI" -Commits $br.focus.AI -TopCommitCount $topCommitCount -TopFileCount $topFileCount -RepoWebBaseUrl $repoWebBaseUrl)) {
+        $report.Add([string]$line)
+    }
+    $report.Add("### " + (Get-Text "other") + " ($brLabel)")
+    $report.Add("")
+    if ($br.other.Count -eq 0) {
+        $report.Add("- " + (Get-Text "other_none"))
+    } else {
+        $otherHigh = @($br.other | Where-Object { $_.importance_score -ge $script:ImportanceThreshold } | Sort-Object -Property @("importance_score", "date") -Descending)
+        $otherLowCount = @($br.other | Where-Object { $_.importance_score -lt $script:ImportanceThreshold }).Count
+        foreach ($commit in $otherHigh) {
+            $report.Add("- $(Get-CompactSubject -Subject $commit.subject)")
+            $report.Add("  - " + (Get-Text "summary") + ": $(Get-CompactSummary -Subject $commit.subject -Tags $commit.tags)")
+            $report.Add("  - " + (Get-Text "reference") + ": $(Get-ReferenceText -Subject $commit.subject -ShortSha $commit.short_sha -Sha $commit.sha -CommitUrl (Get-CommitUrl -RepoWebBaseUrl $repoWebBaseUrl -Sha $commit.sha))")
+        }
+        if ($otherLowCount -gt 0) {
+            $report.Add("- " + (Get-Text "other_low_priority_omitted_prefix") + ": $otherLowCount " + (Get-Text "omitted_suffix"))
+        }
+    }
+    $report.Add("")
+}
+
+$report.Add("---")
 $report.Add("")
 $report.Add("## " + (Get-Text "notes"))
 $report.Add("")
-if ($notes.Count -eq 0) {
-    $report.Add("- " + (Get-Text "no_notes"))
+$allNotes = New-Object System.Collections.Generic.List[string]
+foreach ($n in $globalNotes) { $allNotes.Add($n) }
+foreach ($br in $branchResults) {
+    foreach ($n in $br.notes) { $allNotes.Add("[$($br.branch)] $n") }
 }
-else {
-    foreach ($note in $notes) {
-        $report.Add("- $note")
-    }
+if ($allNotes.Count -eq 0) {
+    $report.Add("- " + (Get-Text "no_notes"))
+} else {
+    foreach ($note in $allNotes) { $report.Add("- $note") }
 }
 $report.Add("- " + (Get-Text "repo") + ": $repoRoot")
-$report.Add("- " + (Get-Text "branch") + ": $branch")
-$report.Add("- " + (Get-Text "window") + ": " + (Get-Text "last_hours_prefix") + " $hours " + (Get-Text "last_hours_suffix"))
 $report.Add("- " + (Get-Text "pull_status") + ": $pullStatus")
 $report.Add("- " + (Get-Text "head_change") + ": $beforeHead -> $afterHead")
-$report.Add("- Analysis ref: $analysisRef")
 if ($repoWebBaseUrl) {
     $report.Add("- " + (Get-Text "link") + ": $repoWebBaseUrl")
 }
@@ -969,23 +1026,22 @@ $report.Add("")
 [System.IO.File]::WriteAllText($reportPath, ($report -join "`r`n"), [System.Text.Encoding]::UTF8)
 
 $payload = @{
-    generated_at = $generatedAt.ToString("o")
-    repo_root = $repoRoot
+    generated_at    = $generatedAt.ToString("o")
+    repo_root       = $repoRoot
     repo_remote_url = $repoRemoteUrl
-    repo_web_url = $repoWebBaseUrl
-    branch = $branch
-    before_head = $beforeHead
-    after_head = $afterHead
-    pull = $pullStatus
-    analysis_ref = $analysisRef
-    lookback_hours = $hours
-    commit_count = $commits.Count
-    authors = @($authors | ForEach-Object { $_ })
-    notes = @($notes | ForEach-Object { $_ })
-    commits = @($commits | ForEach-Object { $_ })
+    repo_web_url    = $repoWebBaseUrl
+    current_branch  = $currentBranch
+    before_head     = $beforeHead
+    after_head      = $afterHead
+    pull            = $pullStatus
+    lookback_hours  = $hours
+    branches        = @($branchResults | ForEach-Object { $_ })
+    notes           = @($globalNotes | ForEach-Object { $_ })
 }
-$payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+$payload | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 
 Write-Host "Report: $reportPath"
 Write-Host "Data:   $jsonPath"
-Write-Host "Commits in window: $($commits.Count)"
+$totalCommits = 0
+foreach ($br in $branchResults) { $totalCommits += $br.commits.Count }
+Write-Host "Total commits across all branches: $totalCommits"
