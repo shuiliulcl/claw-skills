@@ -8,7 +8,8 @@
   - ⏰ 高频出鸟时段：eBird checklist 提交时刻直方图
   - ☀️ 天气、🚇 通勤（高德打车/公交）、📈 鸟况时间线
 
-依赖同目录：qweather_fetch.py / hotspot_detail.py / birdreport_public.py / target_select.py(通勤) / birdwatch_config.py。
+依赖同目录：hotspot_detail.py / birdreport_public.py / target_select.py(通勤) / birdwatch_config.py。
+天气取数走兄弟 skill weather-forecast 的 qweather_fetch.py（绝对路径，跨 skill 调用）。
 用法：python assemble_guide.py --name 世纪公园 --lng 121.5496 --lat 31.2149 --locId L1029418 \
         [--province 上海市 --city 上海市] [--out 观鸟攻略_世纪公园.html]
 """
@@ -65,6 +66,43 @@ def run_json(script, args, timeout=120):
     return None
 
 
+def run_json_abs(abs_script, args, timeout=120):
+    """跑绝对路径脚本（跨 skill 调用用）。失败返回 None。"""
+    try:
+        p = subprocess.run([sys.executable, abs_script, *args],
+                           capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        if p.stdout and p.stdout.strip().startswith(("{", "[")):
+            return json.loads(p.stdout)
+        sys.stderr.write(f"[{os.path.basename(abs_script)}] 无有效输出: {(p.stderr or '')[:200]}\n")
+    except Exception as e:  # noqa: BLE001
+        sys.stderr.write(f"[{os.path.basename(abs_script)}] 失败: {e}\n")
+    return None
+
+
+def birding_hint(day):
+    """根据降水/风力给一句观鸟建议。雨天鸟少且难拍，大风同理；晴和微风最佳。
+
+    观鸟专属逻辑，故留在本 skill；通用天气 skill (weather-forecast) 不带这段。
+    """
+    try:
+        pop = float(day.get("precip", "0") or 0)
+    except ValueError:
+        pop = 0
+    try:
+        wind = int((day.get("windScaleDay", "0") or "0").split("-")[-1])
+    except ValueError:
+        wind = 0
+    text = day.get("textDay", "")
+    if pop > 0 or "雨" in text or "雪" in text:
+        return "有降水，鸟类活动减少且不利拍摄，建议改期或选雨歇时段"
+    if wind >= 5:
+        return "风力较大，小型鸟躲风、林鸟难觅，优先背风林缘或水域"
+    return "天气适宜，清晨与傍晚为观鸟黄金时段"
+
+
+WEATHER_SCRIPT = os.path.expanduser("~/.claude/skills/weather-forecast/scripts/qweather_fetch.py")
+
+
 def ebird(path, params, key):
     qs = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
     req = urllib.request.Request(f"https://api.ebird.org/v2{path}?{qs}",
@@ -101,7 +139,10 @@ def main():
     mappng = os.path.abspath(os.path.join(workdir, "route_map.png"))
 
     # ---- 采集 ----
-    weather = run_json("qweather_fetch.py", ["--lng", args.lng, "--lat", args.lat]) or []
+    wraw = run_json_abs(WEATHER_SCRIPT, ["--lng", args.lng, "--lat", args.lat]) or {}
+    weather = wraw.get("daily", []) if isinstance(wraw, dict) else (wraw or [])
+    for d in weather:
+        d["birdingHint"] = birding_hint(d)
     route = run_json("hotspot_detail.py", ["--name", args.name, "--lng", args.lng,
                      "--lat", args.lat] + (["--locId", args.locId] if args.locId else [])
                      + ["--map-out", mappng]) or {}
