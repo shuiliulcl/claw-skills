@@ -101,6 +101,25 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 
 ---
 
+## ⚠️ 人名使用规则（最高优先级）
+
+- 报告中每个人的姓名，**必须直接使用脚本输出的 `[$displayName]` 字段**，不得自行翻译、改写或凭用户名猜测中文名
+- 脚本输出格式为 `[显示名]  N commit(s)`，照用此显示名，一字不改
+- 禁止根据用户名（如 `jingyuan002`、`xiaozhuwa`）自行推断中文名
+- 如果脚本输出的是英文（如 `Summer`），报告里就写英文，不得翻译
+
+## ⚠️ 人名归属沙箱规则（防张冠李戴）
+
+**AI 分析阶段必须严格按以下流程逐人处理，禁止跨人引用：**
+
+1. 解析脚本输出时，按 `========================` 分隔符将报告切分为若干人员块，每块对应一个 `[$displayName]`
+2. **处理每个人员块时，只允许引用该块内的 CL 编号、文件路径和描述文本**
+3. 生成该人的分析段落后，立即锁定：后续所有其他人的分析，不得引用已处理人员块的任何内容
+4. diff 文件读取时，必须将 diff 路径与所属人员块对应——diff 路径出现在哪个人员块的 `DIFF_FILE:` 行下，分析结果就只能归属于该人
+5. **禁止在整合/汇总阶段重新分配内容归属**，人名一旦从脚本输出确定，不得在后续步骤中更改
+
+---
+
 ## AI 分析规则
 
 ### 提交分类优先级
@@ -165,7 +184,15 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 | **Signal-to-noise** | collection/DataLayer/Undo 类是否还在堆废话式分析 | 有就扣分 |
 | **Readability** | 整体结构清晰，能快速定位每个人的核心改动 | — |
 
-**通过条件**：Coverage = 10 且 Signal-to-noise ≥ 6 且 Readability ≥ 6 且 Overall ≥ 7
+**通过条件**：Coverage = 10 且 Signal-to-noise ≥ 6 且 Readability ≥ 6 且 Overall ≥ 7 且人名归属校验通过
+
+**人名归属校验（Evaluator 必做附加步骤）：**
+
+在打分之前，先做结构校验：
+1. 从脚本输出提取每个人的 CL 关键词集合（取每条 CL 的 DESC 前 10 个中文字符 + 文件路径末段）
+2. 扫描生成报告中每个 `[人名]` 节的内容，检查每条分析文本是否能在该人的关键词集合中找到至少一个匹配
+3. 若发现某人名节下出现了属于其他人的关键词（张冠李戴），**直接判定 Coverage = 0，强制不通过**，feedback 写明「人名归属错误：[X] 节含 [Y] 的提交内容」
+4. 校验通过后再正常打分
 
 **Evaluator JSON 要求**：
 - 单行紧凑格式，不得换行或缩进
