@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 Interactive Object Lookup"
+  short_description: "查找X6交互物ID、名称、BP和Spawner"
+  default_prompt: "Use $x6-interactive-obj-lookup to find an X6 interactive object by ID, BP path, or fuzzy keyword."

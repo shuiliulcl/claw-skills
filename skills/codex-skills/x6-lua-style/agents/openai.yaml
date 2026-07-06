@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 Lua Style"
+  short_description: "X6Game Lua 编写、修改与review规范指南"
+  default_prompt: "Use $x6-lua-style to modify or review X6Game Lua code."

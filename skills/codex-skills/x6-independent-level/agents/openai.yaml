@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 独立关卡"
+  short_description: "X6 独立关卡辅助道路、复玩、重登恢复文档代码索引"
+  default_prompt: "使用 $x6-independent-level 定位 X6 独立关卡的飞书文档、代码路径和模块工作流。"

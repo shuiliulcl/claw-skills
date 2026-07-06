@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE Interactable Collision Audit"
+  short_description: "Audit BP collision and overlap necessity"
+  default_prompt: "Use $ue-interactable-collision-audit to inspect an interactable Blueprint collision setup and explain which overlap or collision settings are necessary."

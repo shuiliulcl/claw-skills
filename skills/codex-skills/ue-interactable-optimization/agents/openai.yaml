@@ -1,0 +1,4 @@
+interface:
+  display_name: "UE Interactable Optimization"
+  short_description: "Analyze and optimize existing UE interactables"
+  default_prompt: "Use $ue-interactable-optimization to analyze and optimize an existing UE interactable."

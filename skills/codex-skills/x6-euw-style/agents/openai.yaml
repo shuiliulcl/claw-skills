@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 EUW Style"
+  short_description: "Consistent X6 editor widget workflow/style"
+  default_prompt: "Use $x6-euw-style when editing an X6 Editor Utility Widget."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lua Code Writing"
+  short_description: "Project Lua coding conventions"
+  default_prompt: "Use this skill when writing or reviewing Lua gameplay code."

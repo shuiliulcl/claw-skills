@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 Game Log Analysis"
+  short_description: "Analyze X6Game logs and decrypt encrypted logs."
+  default_prompt: "Use X6 Game Log Analysis to inspect an X6Game log, decrypting it first when needed."

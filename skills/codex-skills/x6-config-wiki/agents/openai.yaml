@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 Config Wiki"
+  short_description: "查证 X6 配置 XML、Excel、CfgTypes 与读表链路"
+  default_prompt: "Use $x6-config-wiki to trace an X6 config field from XML and Excel into Lua CfgTypes."
