@@ -1,6 +1,6 @@
 ---
 name: sync-ecabridge
-description: 从程序哥 GitLab 同步 ECABridge/ToolsetRegistry/Toolsets/X6Toolsets 到引擎 Experimental 目录或项目 Plugins 目录,支持 pull/push/upstream 三种模式
+description: 从程序哥 GitLab 同步或开发 ECABridge/ToolsetRegistry/Toolsets/X6Toolsets,支持 pull/push/upstream 三种同步模式,以及在 VibeUeToolset 等 ECA Toolset 中补 AI 可调用接口,特别是 UserDefinedEnum 元数据/ToolTip/Lua XML 导出片段相关接口
 ---
 
 # 同步 ECABridge / ToolsetRegistry / Toolsets / X6Toolsets
@@ -80,5 +80,27 @@ description: 从程序哥 GitLab 同步 ECABridge/ToolsetRegistry/Toolsets/X6Too
 - 添加 remote 前先用 `git ls-remote <url> HEAD` 测试连通性,超时 5 秒则跳过并提示
 - **x6toolsets 是 Project Plugin 集合**,跟前三个 Engine Plugin 不同:依赖 UnLua/PaperLuaFramework 等项目级 plugin,只能放在 `<X6Project>/Plugins/` 下。如果当前工作目录不在 X6 项目内(比如纯引擎工作流),就跳过这个仓库
 - 所有操作完成后汇总报告四个仓库的状态(其中 x6toolsets 可能因不在 X6 项目内被跳过)
+
+## Toolset 开发:UserDefinedEnum 接口
+
+当需要让 AI 直接操作 UE 枚举资产,优先在 `toolsets` 仓库的 `VibeUeToolset` 里补 `UFUNCTION(BlueprintCallable)` 接口,不要依赖 Slate UI 点击枚举编辑器或带弹窗的 X6 菜单。
+
+推荐能力拆分:
+1. 读取接口:返回 enum 的 `index/internal/friendly/value/tooltip/version`,用于确认 UE 内部名和导出元数据。
+2. 写入接口:批量设置 `UUserDefinedEnum` 枚举项 `ToolTip` metadata。key 同时支持 friendly name、internal name、`EnumName::InternalName` 和数值字符串,避免调用方先做映射。
+3. 片段接口:只为指定 enum 构造 `PaperBPEnumConfig.lua` 的 Lua block 和 `paper_bpenum_config.xml` 的 XML block,不写文件、不扫全量、不弹窗。调用方再把返回片段 patch 到生成文件,这样可以只保留本次 enum diff。
+
+实现要点:
+- 路径优先放在 `Engine/Plugins/Experimental/Toolsets/VibeUeToolset/Source/VibeUeToolset/`。
+- 复用 `LoadObjectByContentPath` 风格,允许 `/Game/Path/Enum` 和完整 object path。
+- 读取枚举数量时跳过 UE 自动 `_MAX`: `Enum->ContainsExistingMax() ? NumEnums - 1 : NumEnums`。
+- 对 `UUserDefinedEnum` 写 ToolTip 用 `UserEnum->SetMetaData(TEXT("ToolTip"), *Value, Index)`,随后 `MarkPackageDirty()` 和 `PostEditChange()`;如接口提供保存参数,再用 `UPackage::SavePackage` 保存。
+- 生成 XML alias 时按 X6 导出工具规则处理:ToolTip 重复则追加 `-value`,alias 等于 name 时置空,并替换 `&/< />`。
+- 生成 Lua/XML 片段时只返回字符串,不要直接改 `PaperBPEnumConfig.lua` 或 `paper_bpenum_config.xml`;项目配置文件仍按 X6Game P4 规则由调用方 checkout/sync/patch。
+
+验证方式:
+- 先运行 `git diff --check`。
+- 编译 `VibeUeToolset` 模块。若 UE 编辑器正在运行,可能在 link 阶段因占用 `UnrealEditor-VibeUeToolset.dll` 报 `LNK1104`;只要 UHT 和 compile 已通过,可说明代码编译通过但需要关闭编辑器后完成链接。
+- 提交 MR 时只提交 Source 下源码文件,不要混入 `Binaries/` 或 `Intermediate/` 产物。
 
 $ARGUMENTS
