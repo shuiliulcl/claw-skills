@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 Find Item ID"
+  short_description: "Look up X6 item IDs from config tables."
+  default_prompt: "Use $x6-find-item-id to find the item ID for a named X6 prop or item function."
