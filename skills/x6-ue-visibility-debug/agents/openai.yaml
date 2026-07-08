@@ -1,0 +1,4 @@
+interface:
+  display_name: "X6 UE Visibility Debug"
+  short_description: "Debug UE runtime invisibility and distance culling"
+  default_prompt: "Use $x6-ue-visibility-debug to investigate a PIE runtime Actor, Mesh, or Niagara effect that is invisible or distance-dependent."
