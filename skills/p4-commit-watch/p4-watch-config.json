@@ -1,14 +1,19 @@
 ﻿{
   "repos": [
     {
-      "name": "Stb_2.5",
-      "stream": "//root/game/Stb_2.5/...",
-      "label": "Stb_2.5"
+      "name": "Stb_2.8",
+      "stream": "//root/game/Stb_2.8/...",
+      "label": "Stb_2.8"
     },
     {
       "name": "Dev_2.8",
       "stream": "//root/game/Dev_2.8/...",
       "label": "Dev_2.8"
+    },
+    {
+      "name": "Rel_2.8",
+      "stream": "//root/game/Rel_2.8/...",
+      "label": "Rel_2.8"
     }
   ],
   "self_watch": {
@@ -17,9 +22,14 @@
     "enabled": true
   },
   "team_watch": {
-    "members": ["lianlian", "yuechu", "zengtiantong", "tianqi", "lilichen", "bourne", "summer", "yukunlong", "jingyuan002"],
+    "members": ["lianlian", "yuechu", "zengtiantong", "tianqi", "lilichen", "bourne", "summer", "yukunlong", "jingyuan002", "changzhi", "zhaoyang", "ydidal", "maomilaoshi", "xiaozhuwa", "muyi002", "muyu003"],
     "hours_back": 24,
     "enabled": true
+  },
+  "weekly_watch": {
+    "hours_back": 168,
+    "enabled": true,
+    "feishu_doc_title_keyword": "2.8版本周报-程序"
   },
   "notify": {
     "feishu_open_id": "ou_2b6334604d63123d4dc232d596e9d46d"
