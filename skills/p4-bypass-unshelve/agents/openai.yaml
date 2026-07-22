@@ -1,0 +1,4 @@
+interface:
+  display_name: "P4 Bypass Unshelve"
+  short_description: "Bypass exclusive locks and resolve X6 shelved CLs"
+  default_prompt: "Use $p4-bypass-unshelve to unshelve and resolve the specified CL list in the current workspace."
