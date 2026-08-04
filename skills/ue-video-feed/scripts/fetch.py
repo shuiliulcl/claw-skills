@@ -483,6 +483,7 @@ def translate_videos(videos, anthropic_api_key, base_url=None, model=None):
 def push_dm(new_videos):
     if not new_videos:
         return False
+    base_url = f"https://feishu.cn/base/{BASE_TOKEN}?table={TABLE_ID}"
     lines = [f"**UE 频道新增 {len(new_videos)} 条**", ""]
     for i, v in enumerate(new_videos, 1):
         date = v["published"][:10] if v["published"] else ""
@@ -490,6 +491,8 @@ def push_dm(new_videos):
         # 优先显示中文标题,没翻则回退英文
         display_title = v.get("zh_title") or v["title"]
         lines.append(f"{i}. [{display_title}]({url}) · {v['duration']} · {date}")
+    lines.append("")
+    lines.append(f"[📋 查看完整待看表格]({base_url})")
     md = "\n".join(lines)
     proc = run_lark_cli(
         [
