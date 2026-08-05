@@ -112,6 +112,38 @@ lark-cli ... --jq '.data.file_token' 2>/dev/null
 
 我们的 caption 全部包含 `来源 HH:MM:SS` 时间戳, 每个时间戳唯一, 所以拿完整 caption 当锚比较稳。短的 `— 来源 00:12:03` 也够用, 因为时间戳唯一。
 
+## 陷阱 6b: 批量 media-insert 需要每张 sleep 1s(否则中间 caption 丢失)
+
+批量插入 20+ 张图时, **快速连续调用 media-insert 会导致 docx 内容中间段丢失**——飞书 API 后端 block 处理还没稳定就下一个请求进来, 前面 caption 被清掉, 后续插图 selection-with-ellipsis 匹配失败。
+
+**症状**:
+- 前 8-10 张插入 `true`
+- 中间几张 anchor "未找到匹配的内容" (`markdown_length` 骤降说明 doc 被截断)
+- 最后几张又 `true`
+
+**触发条件**: markdown 大小 25KB+ / 图片 15+ 张 / 快速无间隔连续 insert.
+
+**正确做法**: 每张插入后 `sleep 1` 或用 `--interval` 参数(若 lark-cli 支持):
+
+```bash
+grep -oE 'figures_full/renamed/slide_[0-9-]+\.jpg' notes_for_feishu.md | sort -u | while read img; do
+  ts=$(basename "$img" .jpg | sed 's/slide_//' | tr '-' ':')
+  lark-cli docs +media-insert --doc <token> \
+    --selection-with-ellipsis "来源 $ts" \
+    --before --type image --file "./$img" \
+    --width 720 --height 405 --as user --jq '.ok' 2>&1 | tail -1
+  sleep 1     # <-- 关键: 让飞书 API 稳定处理每次插入
+done
+```
+
+**如果已经踩到中间截断**:
+- 已插的图 block 在 doc 里是错乱状态, `overwrite` 一遍能清干净
+- 但 overwrite 也会清掉已插的真实图, 相当于重新开始
+- 最省事: 重新 `drive +import` 一份新 docx, 用 sleep 1 批量走完
+
+历史数据点: UE Mobile Profiling (2026-08-05) 25KB markdown / 19 张图, 无 sleep 时中间 5 张失败(23:18-27:58); 加 sleep 1 后 19 张全通过.
+
+
 ## 陷阱 7: 操作顺序, 在 wiki 移动之前完成所有编辑
 
 - import 是创建在 drive 根目录的
