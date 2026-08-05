@@ -207,6 +207,36 @@ ls figures_full/renamed/slide_*.jpg | awk -F'[_.-]' '{print int($2)}' | sort -n 
 
 历史数据点: StateTree (Inside Unreal, podcast) scene 检测出 42 张, 实际 VALUE 4 张, 命中率 9.5%。补抽 13 张定向命中 11 张, 84.6%。最终笔记图 11 张(15 个 H2 章节里 9 章有图, 60% 覆盖, 跟 BlackEye 单人演讲笔记水平相当)。
 
+### 候选池打分(必做, 零 token 成本)
+
+抽完帧后 / 补抽后 / 进 writer 之前, 跑一次 `frame_quality.py`, 用固定 CV 工具给每张帧打分:
+
+```bash
+python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/frame_quality.py \
+  figures_full/renamed --json frame_quality.json
+```
+
+输出 `frame_quality.json`, 每张帧含:
+- `keep`: bool — 是否通过 hard-kill 过滤(全糊 / 纯黑)
+- `reason`: 字符串, hard-kill 原因(仅 keep=false 时)
+- `median_block`: 3x3 grid 的 median Laplacian variance, <8 = 全糊
+- `entropy`: 颜色直方图熵, <1.4 = 纯黑
+- `edge_density`: Canny 边缘像素占比, <0.015 = 低信息(talking head / 纯背景)
+- `face`: 中央 30% 区域的最大人脸面积占比, >=0.5 = 大脸 talking head
+- `advisory`: 字符串, 非致命警告(`low_info` / `talking_head`), 写作时快速略过
+- `similar_to`: [[name, hamming], ...] — phash 距离 ≤ 8 的相邻帧, 帮 writer 挑最完整那张
+
+**hard-kill 保守到零误伤**: 一次视频最多剔除 5-8 张 100% 垃圾(全糊/黑屏), 剩下都进 writer 候选池。**advisory 是主要省 token 手段**: writer 拿到 JSON 先按 advisory 分组, `low_info` / `talking_head` 的图不用逐张 Read 分析。
+
+历史数据点(UE MCP, 66 张候选):
+- Hard kill 5 张 (writer 无一想要, 100% 精度)
+- Advisory `low_info` 16 张, 其中 14 张 writer 实际丢弃 (88% 精度)
+- 相似度标注: 12 组 near-dup, writer 从每组选一张
+- Writer token 从 ~99K 降到 ~77K, 省 ~22K/次
+
+**依赖**: `opencv-python<5` (4.x 保留经典 Haar cascade API). 首次运行 pip install 即可.
+
+
 ## Phase 4 · Sonnet writer 子 Agent
 
 这是 token 大头(单次 ~110K-150K), 必须用 Sonnet 4.6 不要用 Opus(单价 5×, 质量差距对此任务可忽略)。
@@ -236,7 +266,7 @@ Agent(
 
 ## Phase 5 · Reviewer pass
 
-主线程做(便宜)。两件事必做:
+主线程做(便宜)。三件事必做:
 
 ### 5a. 文字事实抽查
 
@@ -281,6 +311,35 @@ grep -n "!\[" notes_full.md
 发现遗漏就用 Edit 修。常见补抽规模:
 - 单人演讲(BlackEye 类): 文字补漏 2-5 处, 图片补抽 0-5 张
 - **Podcast(Inside Unreal 类)**: 图片补抽 **8-12 张**(基本就是写作前应该补但没补的那批)
+
+### 5c. 章节级锐度扫描(catch 部分糊/运动模糊)
+
+Phase 3 的 `extract_keyframes.py` 会对每个 scene-detected 时间戳自动 refine ±3s. 但 writer 有时选中的是候选池里其他帧(不是 scene 检测锚点), 或候选帧本身覆盖不到最佳时刻. **对 UE Fest / Unreal Engine 官方 demo 视频尤其常见**: 演讲者操作 Claude Code / 切换 slide 时的运动模糊瞬间被抽到.
+
+用 `check_note_frame_sharpness.py` 扫笔记里现有的所有图, 对每张 anchor probe ±5s, dual-metric (edge_density + Laplacian variance) 交叉验证:
+
+```bash
+python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/check_note_frame_sharpness.py \
+  notes_full.md full_1080p_videoonly.mp4
+```
+
+输出分档:
+- **HIGH** (min(edge, lap) gain ≥ 2×): **一定 Read 检查**, 大概率是运动模糊
+- **MED** (gain 1.3-2×): 可能是糊也可能是"内容展开阶段", 快速 skim 判断
+- 低于 1.3× 或 anchor edge < 0.015 (title slide) 直接过滤掉
+
+历史数据点(UE MCP):
+- 首轮 0 HIGH 5 MED — 全部 review 后确认已修完
+- 用户前两轮反馈的糊图(00:00:45, 00:08:00, 00:08:08, 00:13:21)如果这个脚本更早跑就能提前 flag
+- 5 MED 里 0 张是糊(都是"内容展开阶段"), false positive rate 100%, 但**代价只是 5×Read 时间**, 可接受
+
+**修复流程**(每张真糊图 3 步):
+1. 局部 probe ±10s 找最锐帧: `for t in HH:MM:SS ...; do ffmpeg -ss $t -i video.mp4 -frames:v 1 ...; done`, 或直接调 `refine_sharpness()`
+2. Obsidian 笔记 Edit: 图片路径 + caption 时间戳更新
+3. 飞书 docx 三步替换: `str_replace` caption 时间戳 → `media-insert` 新图 → `block_delete` 旧图
+
+一次 review 平均能救 0-3 张糊图.
+
 
 ## Phase 6 · (可选) 发布到飞书 wiki
 

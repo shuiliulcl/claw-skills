@@ -127,18 +127,26 @@ feishu_wiki: <若已发布到飞书, 留位用户填; 第一次写为空字符�
 2. **候选关键帧**: {figures_dir}
    - 命名 `slide_HH-MM-SS.jpg`, 全部 720p, 已用绝对时间戳
 3. **额外可用帧**(可选): {figures_extra}
+4. **候选帧打分**(若存在): {figures_dir}/../frame_quality.json
+   - 每张帧的 blur / entropy / edge_density / face / phash 等指标
+   - `advisory` 字段: 非致命警告 (low_info / talking_head), 表示"用户学习为主, 这类图价值低"
+   - `similar_to` 字段: 近似帧列表, 帮你从相邻帧中挑最完整那张
 
 ## 工作流
 
 1. 先 Read 风格基准文档(若有), 完整把握风格
 2. Read 完整 transcript, 在脑里建结构, 找出每个 method/section 的起止时间
-3. Read **每张候选帧**, 给每张做一句话定性 — slide / demo 镜头 / talking head / Blueprint 截图 / benchmark 表
-   - 对 talking head 镜头一律弃用, 它们是无信息背景
-   - 对画面与已选图重复的 demo 镜头(同场景同角色)挑一张代表
-4. 决定每章节用哪些图, 按"实质帮助"标准选(不要凑 13 张)
-5. 写出完整 Markdown
-6. Write 到 {output_path}
-7. 在最终消息回复:
+3. **优先看 frame_quality.json**(如果存在): 先看整份 JSON 一次(便宜, 一次调用), 按 advisory 分三档:
+   - **A 档 (无 advisory)**: 高信息密度候选, 逐张 Read 分析
+   - **B 档 (`low_info` / `talking_head`)**: 低价值候选, 只在某章节缺图或需要背景说明时才 Read
+   - **C 档 (`similar_to` 有条目)**: 相邻帧, 从每组挑一张代表 Read(通常挑最后一张, 因为逐步展开的 slide 最完整)
+4. Read 决定要用的帧, 一句话定性 — slide / demo 镜头 / talking head / Blueprint 截图 / benchmark 表
+   - 对画面与已选图重复的 demo 镜头挑一张代表(参考 similar_to)
+   - talking head 镜头一般跳过, 但**做背景说明**的少量保留 OK
+5. 决定每章节用哪些图, 按"实质帮助"标准选(不要凑 13 张)
+6. 写出完整 Markdown
+7. Write 到 {output_path}
+8. 在最终消息回复:
    - 输出文件路径 + 字节数
    - 按章节列出实际用了哪些图(时间戳 + 一句话用途)
    - 哪些图明确丢弃, 简单理由
