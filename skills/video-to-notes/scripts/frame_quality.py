@@ -147,6 +147,65 @@ def edge_density(gray: np.ndarray) -> float:
     return float((edges > 0).mean())
 
 
+def saturation_mean(bgr: np.ndarray) -> float:
+    """Mean of HSV S channel. High = colorful (game demo / colored UI / photo);
+    low = monochrome slides / code screenshots / greyscale documents.
+
+    Combined with edge_density this separates 'colorful demo footage' from
+    'text-heavy slide' at similar edge counts.
+    """
+    s = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 1]
+    return float(s.mean())
+
+
+def dark_ratio(gray: np.ndarray) -> float:
+    """Fraction of pixels darker than 80/255. High = code slide / IDE screenshot
+    (dark theme). Helps disambiguate code_dense from generic content_slide.
+    """
+    return float((gray < 80).mean())
+
+
+def classify(r: dict) -> str:
+    """Assign one category label per frame. Priority order matters — earlier
+    labels take precedence.
+
+    This is a coarse hint (~70-80% accurate on real datasets), not ground truth.
+    Writer should still Read frames it might use — category just prioritizes
+    which to inspect first.
+
+    Categories:
+      dead          — hard-killed junk (blur/black), don't read
+      talking_head  — speaker dominates, low info
+      code_dense    — dark bg + high edge density = code/IDE screenshot, prioritize
+      demo_footage  — colorful main content = game viewport / editor scene
+      content_slide — normal slide with text + diagrams (default for kept frames)
+      sparse        — very few edges, likely title card or decorative frame
+    """
+    if not r.get("keep"):
+        return "dead"
+    if r.get("face", 0) >= KEEP_THRESHOLDS["face_center_ratio"]:
+        return "talking_head"
+    edge = r.get("edge_density", 0)
+    sat = r.get("saturation", 0)
+    dark = r.get("dark_ratio", 0)
+
+    # Very sparse edges = title/decorative (writer usually only wants one of these
+    # per section, or none). Do NOT rely on this for information density — dense
+    # diagrams with solid color blocks (e.g. cache line viz) can land here too.
+    if edge < 0.020:
+        return "sparse"
+    # Colorful + edge-rich = demo footage (game viewport / editor scene). Check
+    # BEFORE code_dense because game demos often have dark backgrounds too, and
+    # saturation is the reliable disambiguator (code text is low-sat monochrome).
+    if sat >= 100 and edge >= 0.030:
+        return "demo_footage"
+    # Dark bg + high edge + low sat = code / IDE / terminal screenshot
+    if edge >= 0.045 and dark >= 0.55 and sat < 80:
+        return "code_dense"
+    # Everything else = normal content slide (text + diagrams on light or mixed bg)
+    return "content_slide"
+
+
 def hamming(a: str, b: str) -> int:
     return bin(int(a, 16) ^ int(b, 16)).count("1")
 
@@ -175,6 +234,8 @@ def score_frame(path: Path) -> dict:
         "median_block": round(median_block_lap(gray), 1),
         "entropy": round(color_entropy(bgr), 2),
         "edge_density": round(edge_density(gray), 4),
+        "saturation": round(saturation_mean(bgr), 1),
+        "dark_ratio": round(dark_ratio(gray), 3),
         "face": round(face_center_ratio(gray), 2),
         "phash": perceptual_hash(gray),
     }
@@ -208,6 +269,7 @@ def apply_filters(records: list[dict]) -> list[dict]:
         if r["face"] >= KEEP_THRESHOLDS["face_center_ratio"]:
             flags.append(f"talking_head(face={r['face']:.2f})")
         r["advisory"] = ",".join(flags)
+        r["category"] = classify(r)
 
     # phash advisory (never kill) — annotate near-duplicates
     kept_indices = [i for i, r in enumerate(records) if r["keep"]]
@@ -246,20 +308,20 @@ def main() -> int:
     print(f"# scored {len(records)} frames, keep {keep_ct}, drop {drop_ct}")
     print(f"# thresholds: {KEEP_THRESHOLDS}")
     print()
-    header = f"{'frame':32s}  {'full':>7s}  {'med':>6s}  {'entr':>5s}  {'edge':>6s}  {'face':>5s}  {'keep':>4s}  advisory / reason"
+    header = f"{'frame':32s}  {'full':>7s}  {'med':>6s}  {'entr':>5s}  {'edge':>6s}  {'sat':>5s}  {'face':>5s}  {'keep':>4s}  {'category':<14s}  advisory / reason"
     print(header)
     print("-" * len(header))
     for r in records:
         if not args.verbose and r.get("keep") and not r.get("advisory"):
             continue
         if "error" in r:
-            print(f"{r['name']:32s}  {'ERR':>7s}  {'-':>6s}  {'-':>5s}  {'-':>6s}  {'-':>5s}  {'0':>4s}  {r['reason']}")
+            print(f"{r['name']:32s}  {'ERR':>7s}  {'-':>6s}  {'-':>5s}  {'-':>6s}  {'-':>5s}  {'-':>5s}  {'0':>4s}  {'-':<14s}  {r['reason']}")
             continue
         note = r["reason"] if not r["keep"] else (r.get("advisory") or "")
         print(
             f"{r['name']:32s}  {r['full_lap']:>7.0f}  {r['median_block']:>6.0f}  "
-            f"{r['entropy']:>5.2f}  {r['edge_density']:>6.4f}  {r['face']:>5.2f}  "
-            f"{'1' if r['keep'] else '0':>4s}  {note}"
+            f"{r['entropy']:>5.2f}  {r['edge_density']:>6.4f}  {r['saturation']:>5.0f}  {r['face']:>5.2f}  "
+            f"{'1' if r['keep'] else '0':>4s}  {r.get('category','?'):<14s}  {note}"
         )
 
     if args.json:

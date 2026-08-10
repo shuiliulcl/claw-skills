@@ -223,7 +223,16 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/frame_quality.py 
 - `entropy`: 颜色直方图熵, <1.4 = 纯黑
 - `edge_density`: Canny 边缘像素占比, <0.015 = 低信息(talking head / 纯背景)
 - `face`: 中央 30% 区域的最大人脸面积占比, >=0.5 = 大脸 talking head
+- `saturation`: HSV S 通道均值, 高=彩色(demo/游戏画面), 低=单色(代码/文档)
+- `dark_ratio`: 灰度<80/255 的像素占比, 高=暗色 UI/IDE 截图
 - `advisory`: 字符串, 非致命警告(`low_info` / `talking_head`), 写作时快速略过
+- `category`: 粗分类, 约 60-75% 准确, **仅作 Read 排序提示, 不能当真值**. 类别:
+  - `dead` — 已 hard-kill, 别 Read
+  - `talking_head` — 演讲者大脸, 除非做背景介绍否则跳过
+  - `code_dense` — 暗色高信息密度 = 代码/IDE 截图, **优先 Read**
+  - `demo_footage` — 高色彩 + 高边缘 = 游戏画面/编辑器视口, 一般值得 Read
+  - `content_slide` — 常规 slide(文字+图表), 视章节需要 Read
+  - `sparse` — 边缘极稀疏 = title 卡或大色块图, 每章节最多 Read 一张
 - `similar_to`: [[name, hamming], ...] — phash 距离 ≤ 8 的相邻帧, 帮 writer 挑最完整那张
 
 **hard-kill 保守到零误伤**: 一次视频最多剔除 5-8 张 100% 垃圾(全糊/黑屏), 剩下都进 writer 候选池。**advisory 是主要省 token 手段**: writer 拿到 JSON 先按 advisory 分组, `low_info` / `talking_head` 的图不用逐张 Read 分析。
@@ -235,6 +244,32 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/frame_quality.py 
 - Writer token 从 ~99K 降到 ~77K, 省 ~22K/次
 
 **依赖**: `opencv-python<5` (4.x 保留经典 Haar cascade API). 首次运行 pip install 即可.
+
+
+## Phase 3.5 · GIF 候选评分 (可选, demo-heavy 视频才做)
+
+**只对 demo/motion 密集的视频有意义**(战场演示、编辑器 UI 拖拽、粒子/物理演示)。纯 slide 演讲跳过, GIF 加进去纯浪费。
+
+判断是否值得跑: 视频里有没有 ≥ 3-5 分钟的连续 demo 段落。有就跑, 没有就跳过。
+
+```bash
+python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/motion_density.py \
+  full_1080p_videoonly.mp4 --json motion.json --top 15 --window 5
+```
+
+**原理**: 1 fps 采样 256x144 灰度帧 → 帧间绝对差平均值 → 5s 滑窗均分 → NMS 挑 top N。零 LLM token。43min 视频约 4-5 min wall clock(ffmpeg 1fps 采样是瓶颈)。
+
+**输出**: `motion.json`, 每项含 `start` / `end` / `score` / `rank`。经验区间:
+- `< 5`: 静态(slide / title / talking head)
+- `5-15`: 中等(UI panel 切换 / 演讲者手势)
+- `15-30`: 高动作(demo / 相机运动)
+- `>= 30`: 极高动作(粒子密集 / UI 快速切换)
+
+**注意**: 视频尾部的鼓掌/黑屏会打出极高分, 但对内容没价值。Writer / 主线程要**结合 transcript 上下文过滤**(比如尾部 `[applause]` 时段全部忽略)。
+
+**用途**: 在 Phase 4 writer prompt 里作为额外输入。Writer 会挑 top 候选中"transcript 讲到 demo 且 score >= 15"的时间窗, 输出 `gif_candidates: [{time_range, why, caption}]`(最多 5 个), 主线程在 Phase 6 前拿着这些候选做 GIF 提取和插入。
+
+历史数据点(Mass Entity ECS, 43min): motion.json 前 15 名全部落在 demo 段落(32:00-40:46), 最后一名 rank 15 分 23.85; 只有 rank 1-2 是尾部鼓掌需要过滤。
 
 
 ## Phase 4 · Sonnet writer 子 Agent
@@ -402,6 +437,57 @@ lark-cli drive files patch \
   --data '{"new_title":"<中文标题>"}' \
   --as user
 ```
+
+### 插入 GIF 动图 (可选, demo-heavy 视频专用)
+
+飞书 docx 原生渲染动图, 走**跟静态图完全一样的 media-insert 通道**(`--type image`, 不是 `--type file`), 只是文件是 .gif。**GIF 应该替代对应的静态图, 不是加在下面** — 否则同一段内容出现两遍(静态 + 动图),既冗余又拉长页面。
+
+**替换流程** (每段 GIF): writer 若给出 `gif_candidates`, 在 Phase 6 静态图全插完之后:
+
+```bash
+# 1. 抽 GIF (5s / 15fps / 720p, palettegen + paletteuse)
+mkdir -p gifs
+for range in "00:32:00:5:boids" "00:40:38:5:stress_test"; do
+  IFS=: read -r h m s dur name <<< "$range"
+  ts="${h}:${m}:${s}"
+  ffmpeg -ss "$ts" -t "$dur" -i full_1080p_videoonly.mp4 \
+    -vf "fps=15,scale=720:-1:flags=lanczos,palettegen=stats_mode=diff" \
+    -y "gifs/${name}_palette.png"
+  ffmpeg -ss "$ts" -t "$dur" -i full_1080p_videoonly.mp4 -i "gifs/${name}_palette.png" \
+    -filter_complex "[0:v]fps=15,scale=720:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" \
+    -y "gifs/${name}.gif"
+done
+
+# 2. 拿到静态图 block ID (待删除的那张, 对应 caption 的 target_caption)
+lark-cli docs +fetch --doc <docx-token> --detail with-ids --as user \
+  --jq '.data.document.content' -r > /tmp/doc-with-ids.xml
+# grep 找到静态图 block ID: <img id="doxcn..." name="slide_00-XX-YY.jpg" .../>
+
+# 3. 三步替换 (per GIF)
+# 3a. 把新 GIF 插到 caption 之前 (--before)
+lark-cli docs +media-insert --doc <docx-token> \
+  --selection-with-ellipsis "<caption 独特片段>" --before \
+  --file gifs/<name>.gif --type image --width 720 --height 405 --as user
+
+# 3b. 删掉原静态图 block
+lark-cli docs +update --doc <docx-token> --command block_delete \
+  --block-id <static-image-block-id> --as user
+
+# 3c. 如果之前误插过一份 GIF 在 caption 之后, 一并删掉
+lark-cli docs +update --doc <docx-token> --command block_delete \
+  --block-id <redundant-gif-block-id> --as user
+```
+
+**参数选择**(详细见 `[[ref_video_notes_feishu_gif]]`):
+- 5s / 15fps / 720p ≈ 4-8 MB, 传达一个完整动作足够
+- palettegen `stats_mode=diff` 对动态场景比 `full` 好, dither=bayer:5 抖动最少色带
+- 单段 wall clock ≈ 20-30s (ffmpeg 两遍 + 上传 + 3 次 block 操作)
+
+**陷阱**:
+- `--selection-with-ellipsis` 参数**不能包含反引号**(bash 会试图执行), 挑 caption 里的中文/无反引号片段
+- 没有 `--after` flag; 想插在 caption **前**用 `--before`, 想插在**后**省略该 flag(默认行为)
+- caption 必须在整文档中唯一, 用长中文片段一般够, 撞车时用 `start...end` 语法
+- **不要**只做 media-insert 不做 block_delete: GIF 加在静态图旁边就是冗余, 用户会一眼看到 "两张一模一样"
 
 **陷阱速查**(全在 references/feishu-publish.md 详述):
 - 别用 `media-upload + block_replace` 替占位图: 替换后 block 进入"幽灵态", 后续 block_delete / str_replace 都会 1011 no_change

@@ -128,9 +128,20 @@ feishu_wiki: <若已发布到飞书, 留位用户填; 第一次写为空字符�
    - 命名 `slide_HH-MM-SS.jpg`, 全部 720p, 已用绝对时间戳
 3. **额外可用帧**(可选): {figures_extra}
 4. **候选帧打分**(若存在): {figures_dir}/../frame_quality.json
-   - 每张帧的 blur / entropy / edge_density / face / phash 等指标
+   - 每张帧的 blur / entropy / edge_density / saturation / dark_ratio / face / phash 等指标
    - `advisory` 字段: 非致命警告 (low_info / talking_head), 表示"用户学习为主, 这类图价值低"
+   - `category` 字段: 粗分类 (dead / talking_head / code_dense / demo_footage / content_slide / sparse), **60-75% 准确的排序提示, 不能当真值**
+     - `code_dense` 一般优先 Read (代码/IDE 截图)
+     - `demo_footage` 一般值得 Read (游戏画面/编辑器)
+     - `content_slide` 视章节需要 Read
+     - `sparse` 每章节最多留一张(通常是 title 卡)
+     - `talking_head` 除非做背景介绍否则跳过
    - `similar_to` 字段: 近似帧列表, 帮你从相邻帧中挑最完整那张
+5. **GIF 候选评分**(若存在): {motion_json_path}
+   - Phase 3.5 输出, 每项含 `start` / `end` / `score` / `rank`
+   - 视频里所有 5s 窗口按帧间运动量排序; score ≥ 15 = 高动作段落
+   - **注意**: 视频尾部鼓掌/黑屏也会得高分, 你必须结合 transcript 过滤掉这类段落
+   - 用途: 你在最终消息里输出 `gif_candidates` 时优先从这个列表挑, 见"输出 gif_candidates"节
 
 ## 工作流
 
@@ -153,6 +164,19 @@ feishu_wiki: <若已发布到飞书, 留位用户填; 第一次写为空字符�
    - **章节图覆盖自检**: 列出所有 H2 章节, 标注每个章节图片数量。对 0 图但**本应有图**的章节(专属 UI / Panel / 工具截图 / Sequencer / 节点编辑器 / Blueprint 截图 / benchmark 表 / 对话场景 / 复杂构图演示), 即使候选池里没合适的图, 也明确写出"建议补图: <章节名>, 候选区间 HH:MM-HH:MM, 关键词 <keywords>" — 主线程会基于此定向补抽
    - **你转写中把握不大的技术细节**(数字 / API 名拼错 / 听不清), 标出最佳猜测
    - **你主动延展或合并**的章节(比如 Q&A 怎么压缩的)
+   - **`gif_candidates`** (若主线程给了 motion.json): 从中挑 **0-5** 段动作值得动图化的 5s 时间窗. 判断标准:
+     - 场景是**真的 demo/动态 UI**(游戏画面变化、编辑器交互、粒子/物理演示、寻路 debug 动态), 而不是演讲者手势 / 静态 slide 切换 / 尾部鼓掌
+     - 5s 内讲清一个动作, 不是过渡镜头
+     - 静态 caption 说不清的"密度感 / 变化感"(比如"63k 实体、96fps"这种数字, 站着看 3s 才有感觉)
+     - 输出格式(每条 4 个字段):
+       ```
+       - time_range: HH:MM:SS-HH:MM:SS  (motion.json 里的 start-end)
+       - target_caption: <紧挨着插入位置的静态图 caption 的 20-30 字独特片段, 不含反引号>
+       - why: <一句话: 为什么这段值得 GIF>
+       - suggested_caption: <GIF 自己的 caption, 用于飞书插入后主线程可以选择性 append>
+       ```
+     - **宁缺毋滥**: 如果找不到 3 段以上真正合适的, 就少输出几段甚至 0 段. 塞满 5 段没意义
+     - **纯 slide talk 直接输出空列表** — GIF 对没有 demo 的视频完全是浪费
 
 ## 关键约束
 
