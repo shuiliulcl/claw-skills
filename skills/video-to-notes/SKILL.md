@@ -84,6 +84,8 @@ format 298 (720p60) 仅在 1080p 不可用时降级使用。本地切片用 ffmp
 
 **1080p 下载偶发 HTTP 403**: YouTube 流签名时不时拒。直接重试 1-2 次基本就过, 不需要换 player_client (`--extractor-args "youtube:player_client=android"` 看不到 1080p)。
 
+**Google CDN 坏边缘 host**: 某些 googlevideo edge(如 `rr1---sn-ojnpo5-c3.googlevideo.com`) 从当前网络持续不可达, yt-dlp / aria2c / curl 都会 30s timeout, 因为坏 host 直接 embed 在签名 URL 里. `--force-ipv4` / `--extractor-args player_client=` / `--external-downloader` 都不解. 用 `scripts/resilient_ytdlp_download.py` — 它循环调 `yt-dlp -g` 换 URL, 命中坏 host 就 retry, 拿到好 host 立刻 `curl -sSL` 拉(必须 `-L` 跟 302). 详见 [references/ytdlp-deno.md](references/ytdlp-deno.md) "Google CDN 坏边缘 host 处理".
+
 ## Phase 1+2 替代路径 · tc-video.diezhi.net 内网源
 
 如果输入是 **tc-video.diezhi.net URL 或裸 ID**(腾讯内网 UE/GDC 演讲库), 走 [`tc-video`](../tc-video/SKILL.md) skill 一次性下载, **完全绕过 yt-dlp / deno / clean_vtt 整套**。
@@ -246,11 +248,11 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/frame_quality.py 
 **依赖**: `opencv-python<5` (4.x 保留经典 Haar cascade API). 首次运行 pip install 即可.
 
 
-## Phase 3.5 · GIF 候选评分 (可选, demo-heavy 视频才做)
+## Phase 3.5 · GIF 候选评分 (**默认必跑**, 数据说话)
 
-**只对 demo/motion 密集的视频有意义**(战场演示、编辑器 UI 拖拽、粒子/物理演示)。纯 slide 演讲跳过, GIF 加进去纯浪费。
+**必跑**: 不要肉眼判断"这是 slide 演讲就不用做 GIF" — 会议演讲里插入的 gameplay/UI demo reel、product highlights、editor 操作段, 都是强 GIF 候选. Writer 靠感觉判 `gif_candidates: []` 已被证明会漏掉真候选(Witcher 4 UAF/Cinematic Transitions 都在演讲内塞了 5-15s demo 段, score 50+, 首轮全被 writer 判空).
 
-判断是否值得跑: 视频里有没有 ≥ 3-5 分钟的连续 demo 段落。有就跑, 没有就跳过。
+**唯一跳过条件**: 跑完 motion_density 后 `max(score) < 15`, 意味着整片没有任何 5s 窗口达到"高动作"阈值. 这时候确实是纯 slide talk, 跳过合理.
 
 ```bash
 python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/motion_density.py \
@@ -263,13 +265,34 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/motion_density.py
 - `< 5`: 静态(slide / title / talking head)
 - `5-15`: 中等(UI panel 切换 / 演讲者手势)
 - `15-30`: 高动作(demo / 相机运动)
-- `>= 30`: 极高动作(粒子密集 / UI 快速切换)
+- `>= 30`: 极高动作(粒子密集 / UI 快速切换 / gameplay footage)
 
 **注意**: 视频尾部的鼓掌/黑屏会打出极高分, 但对内容没价值。Writer / 主线程要**结合 transcript 上下文过滤**(比如尾部 `[applause]` 时段全部忽略)。
 
 **用途**: 在 Phase 4 writer prompt 里作为额外输入。Writer 会挑 top 候选中"transcript 讲到 demo 且 score >= 15"的时间窗, 输出 `gif_candidates: [{time_range, why, caption}]`(最多 5 个), 主线程在 Phase 6 前拿着这些候选做 GIF 提取和插入。
 
-历史数据点(Mass Entity ECS, 43min): motion.json 前 15 名全部落在 demo 段落(32:00-40:46), 最后一名 rank 15 分 23.85; 只有 rank 1-2 是尾部鼓掌需要过滤。
+**Writer 输出 `[]` 时主线程必须验证**: 打开 motion.json 亲眼看一次 top-5 分数. 若 top-5 全 <15, writer 判断合理; 若 top-5 中有 >30 的段, writer 判错了, 主线程手动挑 3-5 段做 GIF 并插入(GIF 补图可以后置到 Phase 6.5, 不用把 writer 拉回来重写).
+
+历史数据点:
+- Mass Entity ECS (43min, demo-heavy): 前 15 名全部落在 demo 段(32:00-40:46), rank 15 分 23.85; 只有 rank 1-2 是尾部鼓掌需过滤
+- Witcher 4 UAF (40min, "会议演讲"): top score 62(00:00:51, 开场 highlights reel), 10 candidates ≥ 42, writer 首轮判 `[]`, 用户反馈后补做 2 段 GIF
+- Witcher 4 Cinematic Transitions (37min, "会议演讲"): top score 56(00:05:30, 舞台 Sequencer demo), 10 candidates ≥ 39, writer 首轮判 `[]`, 补做 2 段 GIF
+
+**结论**: 40min 以内会议演讲 ≠ 纯 slide talk. Motion density 便宜, 默认跑.
+
+
+### 3.5b · GIF 文件大小控制
+
+Skill 默认 `5s / 15fps / 720p` 出的 GIF 是 **4-8MB**, 但**动作密集内容会飙到 12-17MB**(Witcher 4 gameplay footage 实测), 接近或超过飞书上传上限.
+
+降体积三档:
+| 目标大小 | 参数 |
+|---|---|
+| ~4-8MB (默认) | `fps=15, scale=720:-1` |
+| ~5-11MB (含密集动画) | `fps=12, scale=640:-1` |
+| ~3-6MB (硬压) | `fps=10, scale=560:-1` |
+
+大 GIF (>8MB) 生成后先 `ls -la` 确认大小, >12MB 就 re-encode 到 640p / 12fps 再传. 飞书 media-insert `--width 720 --height 405` 保持展示宽度不变, 只是浏览器把 640 缩放到 720, 视觉差别可忽略.
 
 
 ## Phase 4 · Sonnet writer 子 Agent
@@ -386,9 +409,12 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/check_note_frame_
 cd D:/Obsidian Vault/工具/video-notes/<slug>
 
 # 转换: 剥 frontmatter + 把 [[slug/notes_full|Display]] 通过 registry 翻成 [Display](feishu_url)
+#        + 自动修复 caption 时间戳拼写坑 (`来源 00:16-16` → `来源 00:16:16`)
 python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/to_feishu.py \
   notes_full.md notes_for_feishu.md
 ```
+
+看到 `[Fixed] N caption timestamp dash typo(s)` 输出说明脚本救回了几处 writer 的拼写坑 — 这些图片在 caption 用连字符时会让 Feishu media-insert 静默漏插(因为 `--selection-with-ellipsis "来源 00:XX:YY"` 匹配不到).
 
 之后所有 lark-cli 命令用 `notes_for_feishu.md` 而不是 `notes_full.md`。
 

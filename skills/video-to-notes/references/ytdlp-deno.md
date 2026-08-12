@@ -82,3 +82,44 @@ You can enable the download with --remote-components ejs:github (recommended).
 ```
 
 加 `--remote-components ejs:github` 才会从 GitHub 拉 challenge solver script。但实测 **deno 默认就拉**, 不需要这个 flag(node 才需要)。
+
+## Google CDN 坏边缘 host 处理
+
+**症状**: yt-dlp 下载卡在某个特定 googlevideo host 反复 30s timeout, 例如:
+
+```
+[download] Got error: Connection to rr1---sn-ojnpo5-c3.googlevideo.com timed out (connect timeout=30.0)
+```
+
+原因: YouTube URL 签名把请求分配到一个从当前网络不可达的 edge server. `--force-ipv4` / `--extractor-args player_client=...` / `--external-downloader aria2c` **都不解决**, 因为 yt-dlp 内部无论走哪层, URL 里 embed 的 host 仍然是那个坏的.
+
+**关键观察**: YouTube 每次调 `-g`(get URL) 会重新分配 edge, 有时候好有时候坏, 就是随机的.
+
+### 正确的重试模式
+
+预解析 URL, 检查 host, 坏就 retry, 好就立刻 curl -L 拉(避免二次分配):
+
+```python
+BAD_HOSTS = {"rr1---sn-ojnpo5-c3.googlevideo.com"}  # 累积踩过的坏 host
+
+for attempt in range(1, 8):
+    r = subprocess.run(["yt-dlp", "-f", "137/299/298", "-g", YT_URL],
+                       capture_output=True, text=True)
+    url = r.stdout.strip().splitlines()[-1]
+    host = re.match(r"https?://([^/]+)/", url).group(1)
+    if host in BAD_HOSTS:
+        time.sleep(3); continue
+    # 好 host — 立刻 curl -L 拉(必须 -L 跟随 302)
+    subprocess.run(["curl", "-sSL", "--connect-timeout", "20",
+                    "--max-time", "1200", "-o", str(OUT), url])
+    if OUT.exists() and OUT.stat().st_size > 50*1024*1024:
+        break
+```
+
+关键点:
+- `curl -L` 必须, 不加会跟 302 redirect 失败, 文件 0 字节但 rc=0(假成功)
+- `subprocess.run` 各种 yt-dlp 的 `--socket-timeout` / `--retries` 对同一坏 host 只是重复失败, 无意义 — 换 URL 才有效
+- 累积一个 BAD_HOSTS 集合, 遇到就跳过重来. `sn-ojnpo5-c3` 是 2026-08 观察到的持续坏 host, 你可能会遇到别的
+
+历史数据点(Witcher 4 Streaming 视频): 第 1-6 次尝试全撞 sn-ojnpo5-c3, 第 7 次拿到 sn-npoldne7 立刻成功, 98MB 视频下完.
+

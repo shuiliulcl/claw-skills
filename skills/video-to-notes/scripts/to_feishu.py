@@ -36,6 +36,10 @@ DEFAULT_REGISTRY = Path("D:/Obsidian Vault/工具/video-notes/registry.json")
 # Match [[slug]] or [[slug|Display]] or [[slug/notes_full|Display]] etc.
 WIKILINK_RE = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
 
+# Match caption timestamp with dash instead of colon: "来源 00:16-16" → should be "来源 00:16:16"
+# Writer occasionally emits dash form, which breaks Feishu media-insert anchor matching silently.
+CAPTION_DASH_RE = re.compile(r"(来源\s+\d{2}:\d{2})-(\d{2})")
+
 
 def strip_frontmatter(text: str) -> str:
     if not text.startswith("---"):
@@ -84,6 +88,14 @@ def main() -> None:
         return f"[{display}]({entry['feishu_wiki']})"
 
     text = WIKILINK_RE.sub(replace, text)
+
+    # Auto-fix caption dash typos (writer sometimes emits `来源 00:16-16` instead of `来源 00:16:16`).
+    # If left in place, feishu media-insert with anchor "来源 00:16:16" silently fails to match.
+    dash_matches = CAPTION_DASH_RE.findall(text)
+    if dash_matches:
+        text = CAPTION_DASH_RE.sub(r"\1:\2", text)
+        print(f"[Fixed] {len(dash_matches)} caption timestamp dash typo(s) (来源 HH:MM-SS → 来源 HH:MM:SS)")
+
     Path(args.output).write_text(text, encoding="utf-8")
 
     print(f"Resolved {resolved} wikilinks")
