@@ -53,6 +53,12 @@ Agent(
 
 历史上踩过的坑: writer 把上一篇笔记的 URL / 日期 / 演讲者名都抄过来了, 用户一眼就发现. 写 callout 和 blockquote 这两块**专门停下来核对一遍 transcript 第一段的开场介绍**, 不要凭印象写.
 
+**人名拼写坑** ⚠️ — YouTube auto-CC 对不常见姓氏拼错是常态:
+- 同一人在字幕里出现多个拼法 (例: "Matt Oztalay" @10:27 vs "Matt Ostelays" @22:05) → 大概率是**同一人**, 不是两个人
+- 你**不能**在笔记里同时留两个拼法或写"疑似 X". 挑一个最合理的 (通常字幕最靠后的一次听得更准), 或者留空让 reviewer 外网核对
+- 演讲者提到"隔壁那场演讲"时, 常常两场都是**同一 author**, 因为 Epic 内部专家一年做多场演讲. 主线程 reviewer 会外网搜, 你别自作主张判断
+- 踩坑记录: Camille K "Project Health" 笔记里 writer 把 "Optimizing UE5: Rethinking Performance Paradigms" 写成 "Matt O'Sullivan" (auto-CC), 实际是同一位 Matt Oztalay 做的三场演讲 (Rethinking Performance / 60 FPS / Automated Perf Testing). Reviewer 外网验证才发现
+
 如未提供风格基准, 按上述要求自己执行.
 
 ## 视频结构(章节锚点)
@@ -164,20 +170,14 @@ feishu_wiki: <若已发布到飞书, 留位用户填; 第一次写为空字符�
    - **章节图覆盖自检**: 列出所有 H2 章节, 标注每个章节图片数量。对 0 图但**本应有图**的章节(专属 UI / Panel / 工具截图 / Sequencer / 节点编辑器 / Blueprint 截图 / benchmark 表 / 对话场景 / 复杂构图演示), 即使候选池里没合适的图, 也明确写出"建议补图: <章节名>, 候选区间 HH:MM-HH:MM, 关键词 <keywords>" — 主线程会基于此定向补抽
    - **你转写中把握不大的技术细节**(数字 / API 名拼错 / 听不清), 标出最佳猜测
    - **你主动延展或合并**的章节(比如 Q&A 怎么压缩的)
-   - **`gif_candidates`** (若主线程给了 motion.json): 从中挑 **0-5** 段动作值得动图化的 5s 时间窗. 判断标准:
-     - 场景是**真的 demo/动态 UI**(游戏画面变化、编辑器交互、粒子/物理演示、寻路 debug 动态、开场 highlights reel、gameplay footage), 而不是演讲者手势 / 静态 slide 切换 / 尾部鼓掌
-     - 5s 内讲清一个动作, 不是过渡镜头
-     - 静态 caption 说不清的"密度感 / 变化感"(比如"63k 实体、96fps"这种数字, 站着看 3s 才有感觉)
+   - **`gif_candidates` (可选补充, 主线程判定)**: GIF 候选的定夺权在主线程 — 主线程会 grep transcript demo 关键词直接挑段, 不主要依赖你的输出. 你**只在读 transcript 时明显感到某段是强 GIF 候选**(有物理反馈 / 玩家操作 / UI 面板参数拖动等强动作 demo, 静态图说不清), 才补充列进来. 找不到就不输出, 塞空数组也 OK.
      - 输出格式(每条 4 个字段):
        ```
-       - time_range: HH:MM:SS-HH:MM:SS  (motion.json 里的 start-end)
+       - time_range: HH:MM:SS-HH:MM:SS  (5-8s)
        - target_caption: <紧挨着插入位置的静态图 caption 的 20-30 字独特片段, 不含反引号>
        - why: <一句话: 为什么这段值得 GIF>
-       - suggested_caption: <GIF 自己的 caption, 用于飞书插入后主线程可以选择性 append>
+       - suggested_caption: <GIF 自己的 caption>
        ```
-     - **不要凭"这是会议演讲, 应该没 demo"就直接判空**. 数据说话: motion.json top-5 里若有 score ≥ 30 的段, 结合 transcript 上下文看清楚是不是真 demo(如 Witcher 4 类项目演讲里插入的 gameplay footage / editor sequencer 演示 / product highlights reel), 是就挑
-     - **判空只在**: motion.json top-5 全部 <15, **或** top 段落全部落在鼓掌/黑屏/演讲者手势区间. 主线程会用 motion.json 二次核对你的判断
-     - **宁缺毋滥**: 找不到 3 段以上真正合适的就少输出几段, 塞满 5 段没意义
 
 ## 关键约束
 

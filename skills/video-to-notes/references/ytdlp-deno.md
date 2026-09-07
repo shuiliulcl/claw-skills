@@ -123,3 +123,57 @@ for attempt in range(1, 8):
 
 历史数据点(Witcher 4 Streaming 视频): 第 1-6 次尝试全撞 sn-ojnpo5-c3, 第 7 次拿到 sn-npoldne7 立刻成功, 98MB 视频下完.
 
+## PO Token 缺失 + CDN 逐 URL 限流 (2026-09 起新增)
+
+**症状** (与"坏边缘 host"不同):
+- **host 每次都同一个** (比如 `sn-aj3pm5-55`) — 换攻击不了它,resilient 脚本救不了
+- **`Range: bytes=0-1048576` (1MB) 能过 → 但立刻再来个 8MB Range 就 403**
+- 完整 GET (无 Range) 直接 0 字节
+- yt-dlp 报 "Downloading android vr player API JSON" 后 403,不管你 `player_client=` 传了啥
+
+**根因链**:
+1. YouTube 2024 底起对 >360p 强制 PO Token (真实浏览器 attest 签发)
+2. yt-dlp 拿不到 PO Token → 服务器仍给可解析 format 列表 (骗 UI),但下载被 CDN 拒
+3. 特殊 client (`mediaconnect` / `android_creator` / `android_music` / `tv_embedded` / `android_producer`) 走的 request path 不需要 PO Token,能拿到高清签名 URL
+4. 但**这些 URL 分配到特殊 edge cluster**, 该集群对**未签发的 client**做 per-URL 快速限流:允许探测性 1-2 个小 Range 请求 (让浏览器 seek preview 能工作),不允许持续 bulk 下载
+
+**判断三步走**:
+
+```bash
+# 1) 常规 client 只给 360p?
+yt-dlp -F "<url>" | grep -E "1080|1440"  # 如果没 720p+,PO Token 已卡 → 试 mediaconnect
+yt-dlp --extractor-args "youtube:player_client=mediaconnect" -F "<url>" | grep -E "1080"
+# 通常 mediaconnect 会列出 1080p60 (299) / 1440p (400)
+
+# 2) 尝试完整下 mediaconnect 高清 — 通常会 403
+yt-dlp --js-runtimes "deno:./bin/deno.exe" \
+    --extractor-args "youtube:player_client=mediaconnect" \
+    -f 299 --output test.%(ext)s "<url>"
+
+# 3) 如果 403,验证是不是 Range 限流 (而不是坏 host):
+URL=$(yt-dlp --js-runtimes "./bin/deno.exe" --extractor-args "youtube:player_client=mediaconnect" -f 299 -g "<url>" | tail -1)
+curl -H "Range: bytes=0-1048576" -sSL -o test1.mp4 "$URL"        # 1MB
+curl -H "Range: bytes=1048577-9437184" -sSL -o test2.mp4 "$URL"  # 8MB
+ls -la test*.mp4
+# test1.mp4 是完整 1MB + test2.mp4 是 0 字节 → 就是 CDN 逐 URL 限流,不是坏 host
+```
+
+**唯一根治方案**: **浏览器 cookies.txt**
+1. Chrome/Edge 商店装扩展 "Get cookies.txt LOCALLY" (不是"Get cookies.txt",后者旧且不维护)
+2. 在浏览器登录 YouTube 后打开目标视频页
+3. 扩展导出 `cookies.txt`
+4. `yt-dlp --cookies cookies.txt -f 299 -o full_1080p_videoonly.mp4 "<url>"`
+
+**为什么 `--cookies-from-browser` 不行**: Windows DPAPI 加密 cookies 数据库,yt-dlp 需要以当前登录 Windows 用户身份运行且 chrome 已退出。Claude Code 通常跑不了这条链路,报 "Failed to decrypt with DPAPI"。
+
+**降级方案**: 接受 360p (`--extractor-args "youtube:player_client=android" -f "bv*"`)
+- Slide 大字号纯文字演讲 (Unreal Fest / GDC 主舞台) 360p 完全可读
+- UE 编辑器截图 / Blueprint 节点图 / benchmark 表数值 → 糊,靠文字段自足
+- Writer prompt 应传入"视频只有 360p"约束,让 caption 保守化
+
+**历史数据点** (Inside Unreal 2026-09-04, Christopher Ming Solo Blueprint 视频):
+- 试了 8 种 player_client,只有 mediaconnect / android_creator / android_music / tv_embedded / android_producer 能列出 1080p60
+- 每一次下载都 403,URL host 恒定 `sn-aj3pm5-55`
+- Range=0-1M 稳过, Range 大块或全量恒 403
+- 最终接受 360p (338MB),12/13 张 slide 图仍可读,3 张 UE 编辑器截图糊但 writer 已用文字步骤自足
+

@@ -32,13 +32,31 @@ BAD_HOSTS = {
     "rr1---sn-ojnpo5-c3.googlevideo.com",
 }
 
-DENO = r"H:/Stb2.5_Banqiang/bin/deno.exe"
+DENO = None
+
+
+def find_deno() -> str:
+    """Locate deno.exe: cwd-local bin > skill-shared bin > PATH."""
+    global DENO
+    if DENO:
+        return DENO
+    candidates = [
+        Path("./bin/deno.exe").resolve(),
+        Path.home() / ".claude/skills/video-to-notes/bin/deno.exe",
+    ]
+    for p in candidates:
+        if p.exists():
+            DENO = str(p)
+            return DENO
+    DENO = "deno"  # last resort: expect on PATH
+    return DENO
 
 
 def resolve_url(youtube_url: str, fmt: str) -> str | None:
     """Ask yt-dlp for a direct download URL."""
+    deno = find_deno()
     r = subprocess.run(
-        ["yt-dlp", "--js-runtimes", f"deno:{DENO}", "-f", fmt, "-g", youtube_url],
+        ["yt-dlp", "--js-runtimes", f"deno:{deno}", "-f", fmt, "-g", youtube_url],
         capture_output=True, text=True, timeout=90,
     )
     urls = [u for u in r.stdout.strip().splitlines() if u.startswith("http")]

@@ -82,9 +82,23 @@ format 优先级: **299 (1080p60 mp4 dash) → 137 (1080p30 mp4 dash) → 298 (7
 
 format 298 (720p60) 仅在 1080p 不可用时降级使用。本地切片用 ffmpeg。**仅视频流, 不要音频**(写作不需要音频, 字幕已经覆盖)。
 
-**1080p 下载偶发 HTTP 403**: YouTube 流签名时不时拒。直接重试 1-2 次基本就过, 不需要换 player_client (`--extractor-args "youtube:player_client=android"` 看不到 1080p)。
+**1080p 下载失败的三档判断** (顺序诊断,别混):
 
-**Google CDN 坏边缘 host**: 某些 googlevideo edge(如 `rr1---sn-ojnpo5-c3.googlevideo.com`) 从当前网络持续不可达, yt-dlp / aria2c / curl 都会 30s timeout, 因为坏 host 直接 embed 在签名 URL 里. `--force-ipv4` / `--extractor-args player_client=` / `--external-downloader` 都不解. 用 `scripts/resilient_ytdlp_download.py` — 它循环调 `yt-dlp -g` 换 URL, 命中坏 host 就 retry, 拿到好 host 立刻 `curl -sSL` 拉(必须 `-L` 跟 302). 详见 [references/ytdlp-deno.md](references/ytdlp-deno.md) "Google CDN 坏边缘 host 处理".
+| 症状 | 诊断 | 解法 |
+|---|---|---|
+| 首次 403,重试就过 | 偶发 CDN 抽风 | 直接重试 1-2 次 |
+| **持续 403** + 每次都是同一个 host 撞 timeout | Google CDN 坏边缘 host (host 被 embed 在签名 URL 里) | `scripts/resilient_ytdlp_download.py` — 循环换 URL 直到拿到好 host, 拿到就立刻 `curl -sSL` |
+| **持续 403** + Range=0-1M 能过但完整 GET 卡死 + host 不换 (总是 sn-xxx-yy 同一集群) | **PO Token 缺失 + 该 CDN 集群对未签发 client 逐 URL 限流** | 试 `--extractor-args "youtube:player_client=mediaconnect"` (或 android_creator / tv_embedded);还不行 → 只能用 cookies.txt (浏览器登 YouTube 后 "Get cookies.txt LOCALLY" 扩展导出) |
+
+**PO Token 的坑**: YouTube 从 2024 底起对 >360p 强制要 PO Token (Proof of Origin, 真实浏览器跑 JS 后由 attest 系统颁发). yt-dlp 拿不到 token 时:
+- format 列表照给 (让 UI 显示可选清晰度) ✓
+- 实际下载被 CDN 拒 403 ✗
+
+android client 天生只给 360p 不受影响, 但 slide 密集 UI 数值不可读。`mediaconnect` / `android_creator` / `tv_embedded` 是特殊 client, 部分 request path 不需要 PO Token 就能拿高清 URL — 但**这些 URL 走特殊 CDN edge host**, 网络路径不佳时会遇到"能 list 不能下"或"Range 能过全量卡"。
+
+**如果 mediaconnect + cookies 都不行**, 接受 360p — 大字号 slide 演讲 (Unreal Fest / GDC 主舞台) 在 360p 下依然可读; UE 编辑器截图会糊, writer prompt 里会指示 caption 保守化 (只标主题, 步骤靠文字自足).
+
+详细排错见 [references/ytdlp-deno.md](references/ytdlp-deno.md)。
 
 ## Phase 1+2 替代路径 · tc-video.diezhi.net 内网源
 
@@ -248,38 +262,57 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/frame_quality.py 
 **依赖**: `opencv-python<5` (4.x 保留经典 Haar cascade API). 首次运行 pip install 即可.
 
 
-## Phase 3.5 · GIF 候选评分 (**默认必跑**, 数据说话)
+## Phase 3.5 · GIF 候选:transcript 主线 + motion.json 辅助
 
-**必跑**: 不要肉眼判断"这是 slide 演讲就不用做 GIF" — 会议演讲里插入的 gameplay/UI demo reel、product highlights、editor 操作段, 都是强 GIF 候选. Writer 靠感觉判 `gif_candidates: []` 已被证明会漏掉真候选(Witcher 4 UAF/Cinematic Transitions 都在演讲内塞了 5-15s demo 段, score 50+, 首轮全被 writer 判空).
+**核心判断:先看字幕,再看运动分数**。字幕是更可靠的 GIF 候选源头,原因:
 
-**唯一跳过条件**: 跑完 motion_density 后 `max(score) < 15`, 意味着整片没有任何 5s 窗口达到"高动作"阈值. 这时候确实是纯 slide talk, 跳过合理.
+1. **字幕直接告诉你"这里在做 demo"** — 演讲者主动切镜时几乎都会口述("let me show", "give you a live demo", "share my screen", "let's try", "watch this"), grep transcript 命中率 > 90%
+2. **字幕告诉你 demo 的内容** — 直接就是 caption 素材, 不需要看图猜
+3. **字幕对布局不敏感** — 单人演讲 / podcast 多 webcam / 会议 highlights reel, 演讲者的口述模式都一样
+4. **motion.json 会被 podcast webcam 网格稀释** — 静态人脸占屏 50-70% 时, 整帧像素差被拉低, 真 demo 段 score 只能到 40-45 分, 不到"高动作(>30)"的判断意图 (GASP 5.8 踩过, 见下方数据点)
+
+### 主流程:transcript 扫 demo 段
+
+```bash
+# demo 关键词全集 (核心动作触发词 + 屏幕共享词 + 亲身演示词)
+grep -nEi "let me show|give you (a|the) (live |quick )?demo|share my screen|let's (try|see|take a look|jump)|jump (in|into|over)|switch (to|over)|check (this|it) out|watch this|and if I (hit|press|click)|so (now|if) I|you can (see|do)|move (on|over) to|now (if|let's|when)" transcript.txt | head -60
+```
+
+从命中里挑**动作演示段**(不是"我给你看 slide"):
+- ✅ 有物理反馈 / 动画演示("takedown", "ragdoll", "walk cycle", "sit down", "shoot", "kick")
+- ✅ 屏幕共享切换到 UE 编辑器 / 游戏窗口("play in editor", "PIE", "let me hit play")
+- ✅ tool UI panel 参数拖动 / knob 变化("if I clamp this", "set this to", "as I drag")
+- ✅ 玩家操作演示("hit R", "press E", "tackle him")
+- ❌ 纯 slide 讲解 / 讲者手势("as you can see on this slide", "this diagram shows")
+
+**输出**: 一个手工挑选的 demo 段落列表, 每段 5-10s, 覆盖笔记里每个 demo 章节 1-2 段.
+
+### 辅助 · motion_density 只用来在候选段内挑最动的 5s
 
 ```bash
 python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/motion_density.py \
-  full_1080p_videoonly.mp4 --json motion.json --top 15 --window 5
+  full_1080p_videoonly.mp4 --json motion.json --top 30 --window 5
 ```
 
-**原理**: 1 fps 采样 256x144 灰度帧 → 帧间绝对差平均值 → 5s 滑窗均分 → NMS 挑 top N。零 LLM token。43min 视频约 4-5 min wall clock(ffmpeg 1fps 采样是瓶颈)。
+motion.json 用途缩到两个:
+1. **精调时间窗**: 在 transcript 定位的 demo 段(比如"01:14-01:22 physics stress")附近, 挑 motion.json 里 score 最高的 5s 起点做 GIF
+2. **补漏**: transcript 扫完之后, 看一遍 motion.json top 20 里有没有落在 transcript 未标注的高动作段(通常是背景 gameplay footage / 无口述的过场)
 
-**输出**: `motion.json`, 每项含 `start` / `end` / `score` / `rank`。经验区间:
-- `< 5`: 静态(slide / title / talking head)
-- `5-15`: 中等(UI panel 切换 / 演讲者手势)
-- `15-30`: 高动作(demo / 相机运动)
-- `>= 30`: 极高动作(粒子密集 / UI 快速切换 / gameplay footage)
+**不再用作**:
+- ~~判"是否值得做 GIF"的门槛~~ (podcast 会误判)
+- ~~writer 输出 gif_candidates 的主输入~~ (writer 现在直接从 transcript 挑, 见 writer prompt 更新)
 
-**注意**: 视频尾部的鼓掌/黑屏会打出极高分, 但对内容没价值。Writer / 主线程要**结合 transcript 上下文过滤**(比如尾部 `[applause]` 时段全部忽略)。
+### 快速执行清单
 
-**用途**: 在 Phase 4 writer prompt 里作为额外输入。Writer 会挑 top 候选中"transcript 讲到 demo 且 score >= 15"的时间窗, 输出 `gif_candidates: [{time_range, why, caption}]`(最多 5 个), 主线程在 Phase 6 前拿着这些候选做 GIF 提取和插入。
+1. Phase 3 抽帧完成后, 主线程 grep transcript 用上面关键词, **主动定位 5-15 段 demo 候选**
+2. 从候选里筛出 3-5 段最值得做 GIF 的 (物理演示 > 玩家操作 > UI 面板变化 > slide 切换)
+3. `motion_density.py` 跑一遍(便宜, 备着), 在每个候选段的 ±5s 附近挑 max score 位置做 GIF 起点
+4. `ffmpeg palettegen+paletteuse` 抽 GIF(默认 5s/15fps/720p, 大于 8MB 降到 12fps/640p, 参数见 3.5b)
+5. Phase 6 发飞书阶段, 静态图和 GIF 走同一个 media-insert 通道(`--type image` 也吃 .gif)
 
-**Writer 输出 `[]` 时主线程必须验证**: 打开 motion.json 亲眼看一次 top-5 分数. 若 top-5 全 <15, writer 判断合理; 若 top-5 中有 >30 的段, writer 判错了, 主线程手动挑 3-5 段做 GIF 并插入(GIF 补图可以后置到 Phase 6.5, 不用把 writer 拉回来重写).
+### Writer 分工调整
 
-历史数据点:
-- Mass Entity ECS (43min, demo-heavy): 前 15 名全部落在 demo 段(32:00-40:46), rank 15 分 23.85; 只有 rank 1-2 是尾部鼓掌需过滤
-- Witcher 4 UAF (40min, "会议演讲"): top score 62(00:00:51, 开场 highlights reel), 10 candidates ≥ 42, writer 首轮判 `[]`, 用户反馈后补做 2 段 GIF
-- Witcher 4 Cinematic Transitions (37min, "会议演讲"): top score 56(00:05:30, 舞台 Sequencer demo), 10 candidates ≥ 39, writer 首轮判 `[]`, 补做 2 段 GIF
-
-**结论**: 40min 以内会议演讲 ≠ 纯 slide talk. Motion density 便宜, 默认跑.
-
+writer 不再是 GIF 候选的判断者. **writer prompt 里 `gif_candidates` 字段改为"可选补充"** — writer 只在读 transcript 时明显看到 slide-only 段被主线程漏挑, 才补几段建议. 判定权在主线程.
 
 ### 3.5b · GIF 文件大小控制
 
@@ -293,6 +326,12 @@ Skill 默认 `5s / 15fps / 720p` 出的 GIF 是 **4-8MB**, 但**动作密集内�
 | ~3-6MB (硬压) | `fps=10, scale=560:-1` |
 
 大 GIF (>8MB) 生成后先 `ls -la` 确认大小, >12MB 就 re-encode 到 640p / 12fps 再传. 飞书 media-insert `--width 720 --height 405` 保持展示宽度不变, 只是浏览器把 640 缩放到 720, 视觉差别可忽略.
+
+### 历史数据点
+
+- Mass Entity ECS (43min, demo-heavy 单人): transcript "let's take a look at" / "let me show" 命中 5 段, 全部对应 motion.json rank 1-15. 两种方法一致.
+- Witcher 4 UAF (40min 会议演讲): transcript grep 命中开场"welcome to" 后的 highlights reel、每章"here's a demo of" 触发的 gameplay 段, 5 段候选, motion.json 全在 top-10.
+- **GASP 5.8 Inside Unreal (2h46min, podcast 7 人 webcam 网格)**: 主线程只信 motion.json 全部落在开场恶搞短片, 判"没 GIF 候选", 用户指出漏做. 事后 grep transcript: `let me show`/`give you a live demo`/`hit R`/`if we walk up to`/`sit down` 命中 8+ 段, 全部是真 demo — AnimGen NPC 走路 / R 键 ragdoll / takedowns / bench sit / physics stress. **教训:字幕主线索天然免疫 webcam 稀释, 应作第一手段, motion.json 是辅助**.
 
 
 ## Phase 4 · Sonnet writer 子 Agent
@@ -336,7 +375,25 @@ grep -nE "数字|API名|可疑拼写" transcript.txt
 
 **重点核对 callout / blockquote** — 这两个区域最容易被 writer 从风格基准里抄错事实(URL / 日期 / 时长 / 人名). 即使 writer prompt 已经警告过, 主线程 reviewer 还是要扫一遍.
 
+**人名 / 项目名交叉验证** ⚠️ — auto-CC 拼错人名和项目名是常态, writer 只看 transcript 无法察觉。主线程必须做:
+
+1. **同一人多个拼法归一**: 笔记里如果出现"Matt Oztalay"和"Matt Ostelays"这种,大概率是 auto-CC 对同一人的两次不同识别 — 挑一个正确的
+2. **项目名外网 WebFetch 验证**: 演讲者口头提到但字幕拼写可疑的项目 (indie 游戏 / GitHub repo / Fab listing) → WebFetch 该人的官方主页 / itch.io / YouTube 频道 asset,对照真实拼写
+3. **多演讲同 author 判定**: 演讲者说"隔壁 X 那场演讲"时,外网搜一下 X 是不是本篇提到的另一场演讲的作者 — Epic 内部专家常一年做多场演讲
+
+历史踩坑:
+- Camille K "Project Health" 笔记 writer 把 *Rethinking Performance Paradigms* 归给"Matt O'Sullivan" (auto-CC 幻觉),实为 **Matt Oztalay** — 同人做了三场演讲被误当作两人
+- Christopher Ming "Solo Blueprint" 笔记 writer 把项目名写成 "Runes of Tearyn" (auto-CC "Runes/Ruins" 听混),实为 **Ruins of Tearyn** — WebFetch 演讲者 itch.io 主页发现
+
 **处理 writer 列出的"待查外部引用"** — writer 在最终消息会列出"提到了但没拿到 URL"的外部演讲 / 工具 / 项目. 主线程逐条搜(YouTube 频道列表 / Google / 演讲者主页 / `yt-dlp --skip-download --write-info-json` 看视频 description), 拿到链接后用 Edit 在笔记里把"演讲者+标题"换成 `[演讲者: 标题](URL)`. **没找到的整段删掉**, 不要留"未公开链接"这种否定句.
+
+**外部 URL 批量搜索建议起 subagent** — 如果 writer 列出 10 条以上待查引用,值得起一个 subagent (general-purpose, sonnet) 用 WebFetch 逐条查 + 交叉验证。Prompt 要求:
+- 明确列出每条要查的资源名 + 演讲者 (如果知道)
+- **强调"宁缺毋滥"** — 找不到就明确说,不要塞"可能是"的 URL
+- 要求**多来源交叉验证**: 演讲名 + 演讲者名 + 频道 一致才算命中
+- 输出结构化表格: 已确认 URL / 无法确认的资源
+
+历史数据点: Camille K 笔记跑 URL 研究 agent, 236 次 tool_use, 84 分钟, 拿回 20 条稳的 URL, 主动识别出 "Matt O'Sullivan = Matt Oztalay" 是同人
 
 **外部 URL 版本/状态核对** ⚠️ — 对每个 writer 已经填进笔记的外部 URL(Fab listing / GitHub repo / 工具产品页 / 文档站 等), 必须**对照 transcript 里演讲者本人对该资源的描述**, 检查:
 
