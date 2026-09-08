@@ -445,6 +445,9 @@ def translate_videos(videos, anthropic_api_key, base_url=None, model=None):
     except urllib.error.URLError as e:
         log(f"翻译 API 网络错误: {e}")
         return blank
+    except (TimeoutError, OSError) as e:
+        log(f"翻译 API 超时/连接中断: {e}")
+        return blank
 
     text = (result.get("content") or [{}])[0].get("text", "").strip()
     if text.startswith("```"):
