@@ -1,6 +1,6 @@
 # Writer Agent Prompt 模板
 
-调 Sonnet 4.6 子 Agent 写完整中文笔记。这是 token 大头, 必须用 Sonnet。
+调 Sonnet 子 Agent 写完整中文笔记。这是 token 大头 (~110-150K Sonnet),必须用 Sonnet 不要用 Opus。
 
 ## 调用模板(Python style, 主线程)
 
@@ -14,7 +14,6 @@ Agent(
         time_anchors="<章节锚点表>",
         transcript_path=r"D:\Obsidian Vault\工具\video-notes\<slug>\transcript.txt",
         figures_dir=r"D:\Obsidian Vault\工具\video-notes\<slug>\figures_full\renamed",
-        figures_extra=r"D:\Obsidian Vault\工具\video-notes\<slug>\figures\renamed",  # 可选
         style_reference=r"D:\Obsidian Vault\工具\video-notes\<prev-slug>\notes_full.md",  # 可选
         output_path=r"D:\Obsidian Vault\工具\video-notes\<slug>\notes_full.md",
     ),
@@ -41,23 +40,17 @@ Agent(
 - 不用 emoji 标题, 不用代码块装饰非代码
 - 关键 benchmark 表用 markdown 表格复刻数值
 
-**⚠️ 关键: 风格基准只用来参考排版、措辞、章节组织, 不要拷贝事实内容**
+**⚠️ 风格基准只参考排版、措辞、章节组织, 不要拷贝事实内容**
 
-风格基准是**别的视频**的笔记. 以下信息**必须**从本次的 {transcript_path} 重新提取, **绝不能**沿用基准里的值:
-- 视频 URL (callout 里那条 youtu.be 链接)
-- 发布日期
-- 时长(HH:MM:SS)
-- 演讲者姓名(包括正确拼写, 不要"差不多")
-- 频道 / 节目名 / 主办方
-- 任何具体的数字、API 名、产品名
+风格基准是**别的视频**的笔记. 以下字段**必须**从本次 {transcript_path} 重新提取, 绝不能沿用基准:
+- 视频 URL、发布日期、时长、演讲者姓名(拼写)、频道、所有具体数字 / API 名 / 产品名
 
-历史上踩过的坑: writer 把上一篇笔记的 URL / 日期 / 演讲者名都抄过来了, 用户一眼就发现. 写 callout 和 blockquote 这两块**专门停下来核对一遍 transcript 第一段的开场介绍**, 不要凭印象写.
+callout 和开场 blockquote 这两块**专门停下来核对一遍 transcript 第一段**, 不要凭印象写.
 
 **人名拼写坑** ⚠️ — YouTube auto-CC 对不常见姓氏拼错是常态:
-- 同一人在字幕里出现多个拼法 (例: "Matt Oztalay" @10:27 vs "Matt Ostelays" @22:05) → 大概率是**同一人**, 不是两个人
-- 你**不能**在笔记里同时留两个拼法或写"疑似 X". 挑一个最合理的 (通常字幕最靠后的一次听得更准), 或者留空让 reviewer 外网核对
-- 演讲者提到"隔壁那场演讲"时, 常常两场都是**同一 author**, 因为 Epic 内部专家一年做多场演讲. 主线程 reviewer 会外网搜, 你别自作主张判断
-- 踩坑记录: Camille K "Project Health" 笔记里 writer 把 "Optimizing UE5: Rethinking Performance Paradigms" 写成 "Matt O'Sullivan" (auto-CC), 实际是同一位 Matt Oztalay 做的三场演讲 (Rethinking Performance / 60 FPS / Automated Perf Testing). Reviewer 外网验证才发现
+- 同一人在字幕里出现多个拼法 (例: "Matt Oztalay" @10:27 vs "Matt Ostelays" @22:05) → 大概率是**同一人**, 不是两个人. 挑一个最合理的 (字幕靠后的通常更准), 不要留两个
+- 演讲者提到"隔壁那场演讲"时, 常常两场**同一 author**. 主线程 reviewer 会外网核对, 你别自作主张判断
+- 踩坑: Camille K "Project Health" 笔记 writer 把 "Rethinking Performance Paradigms" 归给 "Matt O'Sullivan" (auto-CC 幻觉), 实为 **Matt Oztalay** 做的三场演讲里的另一场. Reviewer 外网验证才发现
 
 如未提供风格基准, 按上述要求自己执行.
 
@@ -68,23 +61,21 @@ Agent(
 例:
 | 时间区间 | 内容 |
 |---|---|
-| 04:44 - 09:00 | 主持人 + 嘉宾介绍 + 主题背景 |
+| 04:44 - 09:00 | 主持人 + 嘉宾介绍 |
 | 09:00 - 15:50 | Method 1: Spawned Actor |
 | ... | ... |
 
 ## 输出文档结构
 
-最终 markdown **必须**按以下顺序:
-
 ```markdown
 ---
 title: <中文翻译标题, 跟用户在飞书设置的页面标题一致>
 title_en: <原视频英文标题完整, 包含 | Inside Unreal 等后缀>
-aliases: [<别名列表, 便于搜索, 比如方法名/概念名/演讲者别名>]
-tags: [ue5, <主题如 gameplay/animation/rendering>, <子主题>]
+aliases: [<别名列表: 方法名 / 概念名 / 演讲者别名>]
+tags: [ue5, <主题>, <子主题>]
 category: video-notes
-created: YYYY-MM-DD  # 第一次写笔记的日期
-updated: YYYY-MM-DD  # 当次写作日期
+created: YYYY-MM-DD  # 第一次写笔记日期
+updated: YYYY-MM-DD  # 本次写作日期
 video_url: <youtu.be 短链或完整 URL>
 duration: <1hXXmXXs>
 speaker: <演讲者姓名, 多个用逗号>
@@ -93,202 +84,141 @@ publish_date: YYYY-MM-DD  # 视频发布日期
 sources:
   - transcript: D:/Obsidian Vault/工具/video-notes/<slug>/transcript.txt
   - github: <若演讲附 GitHub 项目>
-feishu_wiki: <若已发布到飞书, 留位用户填; 第一次写为空字符串>
+feishu_wiki: ""  # 第一次写为空字符串, 发布后由主线程填
 ---
 
 <callout>... 视频 URL + 元信息 ...</callout>
 > 演讲者背景 blockquote
-## 第一个 H2 章节
-...
-## ... 各章节 ...
-## Q&A 技术精华
-## Related Concepts
-- [[<其它笔记的相对路径>|<显示名>]] — 一句话说明关联点 (动机/对照/前置/后续)
-- [[<另一个>|<显示名>]] — ...
-> 收尾(尾部 blockquote, 列 GitHub / 关键资源)
+## 各 H2 章节(主题组织,不按时间)
+## Q&A 技术精华(如字幕末尾有问答)
+## Related Concepts(可选, 宁缺毋滥)
+> 收尾 blockquote
 ```
 
 ### Related Concepts 章节(可选, 宁缺毋滥)
 
-**Related Concepts 是宁缺毋滥的可选章节**: 如果给了 `style_reference` (上一篇笔记), 你**可以**思考两份笔记是否真的有关联。**判断标准是严苛的**:
+如果给了 `style_reference`, 判断两份笔记是否真的有关联。**判断标准严苛**:
 
-- 关联点必须**一句话能说清** — 如果你需要解释三句才能让读者觉得"哦确实相关", 这就是牵强, 不要写
-- 主题差异大的两份笔记(比如"摄像机系统" vs "子弹处理") **大概率没有真关联**, 哪怕都是 UE5。"都用了 GameplayTag" 这种 UE5 通用模式不算关联点 — 那是几乎所有 UE5 系统的共性, 写出来等于没写
-- "Benchmark 互为佐证" / "类似设计哲学" / "同一思路" 这种抽象表述, 99% 的情况下是在硬掰
-- **历史踩坑**: BlackEye 笔记里我曾把"摄像机不是组件" vs "Pooled Actor 不重复 spawn"、"Gameplay Modifiers" vs "Multi-Trace handler 中央数组"、"Trigger Volume + tag" vs "Pool event subscription" 凑成三条 Related Concepts。用户反馈"牵强", 全部删掉了。**关注点不同就是不同, 不要为了"格式完整"凑数**
+- 关联点必须**一句话能说清** — 需要三句才能让读者觉得"哦确实相关"就是牵强, 不要写
+- "都用 GameplayTag" / "类似设计哲学" / "同一思路" 99% 是硬掰. 主题差异大的两份笔记大概率没真关联, 哪怕都是 UE5
+- 踩坑: BlackEye 笔记里曾把"摄像机不是组件" vs "Pooled Actor 不重复 spawn" 等三条凑成 Related Concepts, 用户反馈"牵强"全删
 
-**正确判断流程**:
+正确流程:
+1. 读完 style_reference 和本次 transcript, 各列核心主题
+2. 问:**两个主题之间, 读者真会觉得"一起看更清楚"吗?**
+3. 有 → 一条简短 link + 一句话说明;**无 → 省略整个章节**。一条牵强关联比 0 条更糟
 
-1. 读完 style_reference, 列出该笔记的核心主题(比如 "Pooled Actor 性能优化")
-2. 读完本次 transcript, 列出本笔记的核心主题(比如 "摄像机构图与运动学")
-3. 问自己:**两个核心主题之间, 真有读者会觉得"哦这两个一起看更清楚"的关系吗?**
-4. 如果有, 一条简短的 link + 一句话说明为什么。
-5. 如果没有, **省略整个 Related Concepts 章节**。一条牵强的关联比 0 条更糟, 会拉低整篇可信度。
+决定写就用 Obsidian wikilinks: `[[ue-camera-blackeye/notes_full|Black Eye 2.0]]` — 不要 markdown URL。转飞书时 `scripts/to_feishu.py` 自动翻译。
 
-如果决定写, 必须用 Obsidian wikilinks: `[[ue-camera-blackeye/notes_full|Black Eye 2.0]]` (不要用 markdown URL)。理由: Obsidian 原稿要让双向链 / graph view 工作; 转飞书时 `scripts/to_feishu.py` 会通过 registry 自动翻译。
+## 输入
 
-1. **完整字幕**: {transcript_path}
-   - 干净, 已去重, 每行 `[HH:MM:SS] 文本` 格式
-   - 自动 CC, 数字 / API 名 / 术语偶有拼错, 上下文判断
-2. **候选关键帧**: {figures_dir}
-   - 命名 `slide_HH-MM-SS.jpg`, 全部 720p, 已用绝对时间戳
-3. **额外可用帧**(可选): {figures_extra}
-4. **候选帧打分**(若存在): {figures_dir}/../frame_quality.json
-   - 每张帧的 blur / entropy / edge_density / saturation / dark_ratio / face / phash 等指标
-   - `advisory` 字段: 非致命警告 (low_info / talking_head), 表示"用户学习为主, 这类图价值低"
-   - `category` 字段: 粗分类 (dead / talking_head / code_dense / demo_footage / content_slide / sparse), **60-75% 准确的排序提示, 不能当真值**
-     - `code_dense` 一般优先 Read (代码/IDE 截图)
-     - `demo_footage` 一般值得 Read (游戏画面/编辑器)
-     - `content_slide` 视章节需要 Read
-     - `sparse` 每章节最多留一张(通常是 title 卡)
-     - `talking_head` 除非做背景介绍否则跳过
-   - `similar_to` 字段: 近似帧列表, 帮你从相邻帧中挑最完整那张
-5. **GIF 候选评分**(若存在): {motion_json_path}
-   - Phase 3.5 输出, 每项含 `start` / `end` / `score` / `rank`
-   - 视频里所有 5s 窗口按帧间运动量排序; score ≥ 15 = 高动作段落
-   - **注意**: 视频尾部鼓掌/黑屏也会得高分, 你必须结合 transcript 过滤掉这类段落
-   - 用途: 你在最终消息里输出 `gif_candidates` 时优先从这个列表挑, 见"输出 gif_candidates"节
+1. **完整字幕**: {transcript_path} — 每行 `[HH:MM:SS] 文本`, auto-CC 术语偶有拼错
+2. **候选关键帧**: {figures_dir} — `slide_HH-MM-SS.jpg`, 720p 或 1080p, 绝对时间戳
+3. **候选帧打分** (若存在): `{figures_dir}/../frame_quality.json`
+   - `advisory` 字段: `low_info` / `talking_head` = 价值低, **跳过 Read**
+   - `category`: `dead` 已剔; `code_dense` / `demo_footage` 优先 Read; `sparse` 每章节最多一张; `talking_head` 跳过
+   - `similar_to`: 近似帧列表, 从每组挑一张代表(通常最后一张, slide 展开最完整)
 
 ## 工作流
 
-1. 先 Read 风格基准文档(若有), 完整把握风格
-2. Read 完整 transcript, 在脑里建结构, 找出每个 method/section 的起止时间
-3. **优先看 frame_quality.json**(如果存在): 先看整份 JSON 一次(便宜, 一次调用), 按 advisory 分三档:
-   - **A 档 (无 advisory)**: 高信息密度候选, 逐张 Read 分析
-   - **B 档 (`low_info` / `talking_head`)**: 低价值候选, 只在某章节缺图或需要背景说明时才 Read
-   - **C 档 (`similar_to` 有条目)**: 相邻帧, 从每组挑一张代表 Read(通常挑最后一张, 因为逐步展开的 slide 最完整)
-4. Read 决定要用的帧, 一句话定性 — slide / demo 镜头 / talking head / Blueprint 截图 / benchmark 表
-   - 对画面与已选图重复的 demo 镜头挑一张代表(参考 similar_to)
-   - talking head 镜头一般跳过, 但**做背景说明**的少量保留 OK
-5. 决定每章节用哪些图, 按"实质帮助"标准选(不要凑 13 张)
-6. 写出完整 Markdown
-7. Write 到 {output_path}
-8. 在最终消息回复:
-   - 输出文件路径 + 字节数
-   - 按章节列出实际用了哪些图(时间戳 + 一句话用途)
-   - 哪些图明确丢弃, 简单理由
-   - **章节图覆盖自检**: 列出所有 H2 章节, 标注每个章节图片数量。对 0 图但**本应有图**的章节(专属 UI / Panel / 工具截图 / Sequencer / 节点编辑器 / Blueprint 截图 / benchmark 表 / 对话场景 / 复杂构图演示), 即使候选池里没合适的图, 也明确写出"建议补图: <章节名>, 候选区间 HH:MM-HH:MM, 关键词 <keywords>" — 主线程会基于此定向补抽
-   - **你转写中把握不大的技术细节**(数字 / API 名拼错 / 听不清), 标出最佳猜测
-   - **你主动延展或合并**的章节(比如 Q&A 怎么压缩的)
-   - **`gif_candidates` (可选补充, 主线程判定)**: GIF 候选的定夺权在主线程 — 主线程会 grep transcript demo 关键词直接挑段, 不主要依赖你的输出. 你**只在读 transcript 时明显感到某段是强 GIF 候选**(有物理反馈 / 玩家操作 / UI 面板参数拖动等强动作 demo, 静态图说不清), 才补充列进来. 找不到就不输出, 塞空数组也 OK.
-     - 输出格式(每条 4 个字段):
-       ```
-       - time_range: HH:MM:SS-HH:MM:SS  (5-8s)
-       - target_caption: <紧挨着插入位置的静态图 caption 的 20-30 字独特片段, 不含反引号>
-       - why: <一句话: 为什么这段值得 GIF>
-       - suggested_caption: <GIF 自己的 caption>
-       ```
+1. Read 风格基准(若有), 把握风格
+2. Read 完整 transcript, 建结构
+3. 看 frame_quality.json 一次, 按 advisory 分 A / B / C 档, 决定要 Read 的帧集合
+4. **串行 Read 关键帧**, 一次 1-2 张, 中间穿插判断。目标**总 Read 10-25 张**, 不要试图全部读完
+5. **立即 Write 到 {output_path}** —— 见下方"反 API stall 硬规则", 这一步最容易出事
+6. 最终消息(**简短**, 不复述正文):
+   - 文件路径 + 字节数
+   - 按章节列实际用了哪些图(时间戳 + 一句话用途)
+   - **章节图覆盖自检**: 列出所有 H2 章节图片数量。对**本应有图但 0 图**的章节(专属 UI / Panel / Blueprint / benchmark 表 / Sequencer 等), 写"建议补图: <章节>, 候选区间 HH:MM-HH:MM, 关键词 X" — 主线程基于此定向补抽
+   - 把握不大的技术细节(数字 / API 名 / 听不清的), 标出最佳猜测
+   - 需要主线程查链接的外部引用
+   - **`gif_candidates`(可选)**: 判定权在主线程, 你**只在读 transcript 时明显感到某段是强 GIF 候选**(物理反馈 / 玩家操作 / UI 参数拖动等强动作 demo), 才补充。找不到就不输出
+     - 格式: `{time_range: HH:MM:SS-HH:MM:SS, target_caption: <静态图 caption 20-30 字片段,不含反引号>, why: <一句话>, suggested_caption: <GIF caption>}`
 
-## 关键约束
+## ⚠️ 反 API stall 硬规则(违反就会卡死)
 
-- 不要在最终消息里复述整篇 markdown, 我会直接读文件
-- 保留风格基准已批准的措辞, 除非发现明显事实错误才微调
-- Q&A 部分**只挑技术精华**, 不要逐个问答记录; 按主题聚合, 每条 3-6 行
-- 最长的方法/章节给足篇幅, 配合关键 benchmark 数字
-- 如果有完整对比表(比如多方法 benchmark), **把所有行都从 transcript 里挖出填齐**, 不要留 "—"
+这几项**是硬规则不是建议**, 之前每篇长笔记都因此栽过:
 
-## ⚠️ 反 API stall 硬规则
+### 规则 1 — 读图串行
 
-以下几项 **是硬规则不是建议**, 违反会导致 Agent 进程被上游 API 断连(response stalled mid-stream), 之前每篇长笔记都因此栽过一两次:
+Read 图片一次开 6-8 个并行 → API 卡断. **每次 Read 1-2 张**, 中间穿插判断文字。总 Read 控制在 10-25 张,不要贪多 —— 每张 base64 图 ~20-40K token,10 张就把 context 推到 200K+。
 
-### 1. 读图串行, 不要并行
+### 规则 2 — Read 完图之后,**同一 turn 内立即发 Write**
 
-Read 图片一次开 6-8 个并行 → API 卡断. 硬规则: **每次 Read 1-2 张**, 中间穿插判断或思考文字, 再决定下一批. 60+ 张候选按时间桶(每 2-3 分钟 1 张代表)采样, 目标 **总 Read 25-40 张**, 不要试图全部读完.
+**不要**用一条文字消息"收尾",比如:
+- ❌ "关键帧都看完了,现在整理结构,写笔记"
+- ❌ "图读完了,下一步开始写"
+- ❌ 任何只是"宣告下一步"的 text 块
 
-### 2. 大笔记分片 Write
+这种 text 块会让 turn 以 end_turn 正常结束 → 任务被 harness 当作"完成了"返回主线程 → 主线程看到的最后一句就是这个状态文字 → 它以为你卡住了,又发一轮 continue, 你又进 thinking 再预演一遍,**又没真 Write**。这不是 API stall,是你自己把 turn 结束了。
 
-一次 Write 25KB+ 的 markdown → API 卡断在响应中段. 硬规则:
-- 目标笔记 **> 20KB** 时, 主动分 2 片写:
-  - 第 1 次 Write: frontmatter + 前半章节 (~10-14KB), 停在某个 H2 结束处. 写完立刻回复"前半写完, 等继续指令"
-  - 第 2 次调用(主线程 SendMessage): 用 Edit 或再 Write 补齐后半章节 + Related Concepts + 收尾
-- 若你判断不了大小, 保守起见都分片
-- **一次 Write 尝试超时后, 已经生成的部分文本会丢失**, 分片是唯一救回办法
+正确做法: Read 完最后一张图,**不出 text**(或只出一句 ≤ 20 字的过渡),**同一个 assistant 消息里直接接 Write 工具调用**。
 
-### 3. Caption 时间戳必须冒号
+**同样,不要在读完图之后用超长 thinking 块"预演正文大纲"再 Write**。预演会把生成压力推到后面,反而更容易 stall。该写就写,结构在读 transcript 时就应该定下来了,不需要再在 thinking 里重排一次。
 
-配图 caption 里 "来源 HH:MM:SS" 必须**全用冒号**, 不要写成 "来源 00:16-16" 这种连字符. 后者会让 Feishu 发布阶段的 media-insert 找不到锚点, 图片静默漏插. (`to_feishu.py` 现在会自动修, 但源头写对省事.)
+### 规则 3 — Write 单次 ≤ 12KB,>12KB 必须分片
+
+一次 Write **≥ 15KB** 的 markdown 在 150K+ context 下 → API 卡断在流中段,从外部看就是"agent 返回同一句话,tool_uses 不涨"。实测本次 2XKO 笔记 writer 在 ~130K context 下尝试一次 Write ~17KB 直接 stall 掉。
+
+硬规则:
+- **预估正文 >12KB 时, 主动分 2 片**:
+  - 第 1 次 Write: frontmatter + callout + 前半 H2 (~8-10KB), 停在某个 H2 结束处。写完回复**一句话** "前半已 Write,等继续指令" 结束 turn
+  - 等主线程 SendMessage 后, 用 Edit 或再 Write 补齐后半 + Related Concepts + 收尾
+- 判断不了大小就**保守分片**
+- **Write 失败后部分生成的文本会丢失**,分片是唯一救回办法
+- 粗估公式: `正文 KB ≈ H2 数 × 1.2 + 图片数 × 0.3 + 2`。超过 12 就分片
+
+### 规则 4 — Caption 时间戳必须冒号
+
+配图 caption 里"来源 HH:MM:SS"必须**全用冒号**,不要 "来源 00:16-16" 这种连字符。后者让飞书 media-insert 找不到锚点,图片静默漏插。(`to_feishu.py` 现在会自动修,但源头写对省事。)
 
 ## 内容质量原则(宁缺毋滥)
 
-笔记里**每一句话都要给读者带价值**. 以下几类"硬凑"内容必须避免:
+笔记里**每一句话都要给读者带价值**。以下几类"硬凑"内容必须避免:
 
-### 引用外部演讲/资源时必须连同链接
+### 引用外部演讲 / 资源必须连同链接
 
-如果演讲者口头提到另一场演讲、文章、工具、GitHub 项目、博客文章等可索引的外部资源, 笔记里要引用就**必须附上 URL**. **找不到链接就不要引用** — 仅给读者一个名字让他自己搜没意义.
+演讲者口头提到另一场演讲、工具、GitHub 项目、博客等**可索引外部资源**, 要引用就**必须附 URL**。**找不到链接就不要引用** — 给一个名字让读者自己搜没意义。
 
-定位链接的常用手段(主线程 reviewer 阶段做):
-- 演讲者姓名(确认正确拼写) + 标题关键词在 YouTube / Google 搜索
-- 该外部演讲所属频道(Unreal Fest / GDC Vault / Inside Unreal)的官方列表页
-- 视频描述区抓 metadata: `yt-dlp --skip-download --write-info-json -- <url>` 看 description / chapters
+搜不到就在最终消息列为"主线程待查",不要塞 "可能是..." 的猜测 URL。
 
-如果搜过几次都没拿到精确链接, 这条引用整体省略. 在你的"最终消息"里把"需要主线程查链接的引用"列出来.
+### 引用外部链接时必须核对版本/状态匹配 ⚠️
 
-### 引用外部资源链接时必须核对版本/状态匹配 ⚠️ 关键
+演讲者常区分"基础版本(已公开)" vs "演讲展示的扩展版本(未公开/即将发布)"。
 
-**仅凭名字相似或搜索匹配就贴 URL 是危险的.** 演讲者经常区分:
-- "基础版本(已公开)" — 所属仓库/listing 已经在外网
-- "演讲展示的扩展版本(未公开/即将发布)" — 同名但当前外网拿不到
+- 对照 transcript **演讲者本人对资源的描述**,核对外网拿到的状态
+- 如果演讲者说"stand by for next release" / "not public yet",**不能**把同名外网资源当成"演讲展示的就是这个"
+- 不确定就写"演讲未给出公开下载链接",不要硬塞 URL
 
-引用外部资源时必须**对照 transcript 里演讲者本人对该资源的描述**,核对:
-- 当前外网拿到的版本/状态 vs 演讲者展示的版本是否同一个
-- 如果演讲者明确说"这部分是我们最近做的, 还没发布" / "next release 几个月后上" / "尚未公开", 那即使有同名外网资源, **也不能把它当成"演讲展示的就是这个"**
+踩坑: StateTree 笔记第一版引用 [Project Titan Fab listing](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) 时写"完整 StateTree 配置随样本一起开放" — 但 Sebastian [00:13:44] 明确说"next Titan release coming in a couple of months",当时 Fab 上是 2024 art jam 版,**不含**演讲展示的工具集,引用变成误导。
 
-正确做法:
-- 引用外网链接时说清楚"这是基础/art jam 版本, 演讲展示的扩展工具集尚未公开" 这种边界
-- 在最终消息里把"演讲者描述与外网资源版本的差异"列出来, 让主线程二次核对
-- 不确定就在笔记里写"演讲未给出公开下载链接", 而不是硬塞一个不准确的 URL
+### 不写"纠错过程"
 
-**踩坑记录**: StateTree 笔记第一版引用 [Project Titan Fab listing](https://www.fab.com/listings/c05aac82-4c1a-4e42-96b3-be668dc40fca) 时, 写"完整 StateTree 配置随样本一起开放" — 但 transcript 里 Sebastian 在 [00:13:44] 明确说"stand by for next Titan release, probably coming in a couple of months", 演讲时(2026-02-05)Fab 上的还是 2024 art jam 版, **不含**演讲展示的 NPC/对话/任务工具集. 所以引用变成误导.
+字幕 auto-CC 听错人名 / 术语,主线程会反查。笔记里**直接写正确的拼写**,不写"(原字幕误识别为 X,实际是 Y)" / "(auto-CC 听成 Z)"。笔记是成品,不是 changelog。
 
-### 不写"纠错过程", 直接用正确版本
+### 不写"没有 X" / "未找到 Y"
 
-字幕 auto-CC 经常听错人名 / 术语. 主线程会做事实核对. 笔记里**直接写正确的拼写**, 不要写"(原字幕误识别为 X, 实际是 Y)" / "(YouTube auto-CC 听成 Z)" 这种纠错痕迹. 笔记是给读者读的成品, 不是 changelog.
+笔记里不要塞纯否定句:
+- ❌ "演讲中没有公开 GitHub 仓库或示例项目下载链接"
+- ❌ "X 的链接由演讲者口头提及, 但未在视频描述中附出"
+- ❌ "本文档不涉及 Y / 演讲中未涉及 Z"
 
-### 不写"没有 X" / "未找到 Y" 的否定信息
+读者关心"有什么",不是"作者找了什么但没找到"。直接省略整段。
 
-笔记里**不要塞这种纯否定句**:
-- "演讲中没有公开 GitHub 仓库或示例项目下载链接"
-- "X 的链接由演讲者口头提及, 但未在视频描述中附出"
-- "本文档不涉及 Y / 演讲中未涉及 Z"
-
-读者关心"有什么", 不是"作者尝试找了什么但没找到". 直接省略整段.
-
-例外: 如果"没有 X"是设计决策本身的关键(例: "该方法刻意不使用 GameplayTag, 因为 ..."), 那是正向陈述, 不属于这里说的否定信息.
+例外: "没有 X" 是设计决策本身(例: "该方法刻意不使用 GameplayTag,因为 ..."),属正向陈述,保留。
 
 ## 配图 caption 格式
 
-每张图下面紧跟一行斜体小字 caption, 包含一句话描述 + "来源 HH:MM:SS":
+每张图下面紧跟一行斜体小字 caption,包含一句话描述 + "来源 HH:MM:SS":
 
-```markdown
 ![alt 简短描述](figures_full/renamed/slide_00-14-00.jpg)
 *Benchmark 表 — 6 种方法对比 · 来源 00:14:00*
+
+如果是**关键 benchmark 截图**, 图旁边**同时用 markdown 表格复刻数值** — 字幕没给完整表时就靠这张,字小可能不可读,表是兜底。
+
+## 其他约束
+
+- 不要在最终消息里复述整篇 markdown, 主线程会直接读文件
+- Q&A 部分**只挑技术精华**, 不逐个问答记录; 按主题聚合, 每条 3-6 行
+- 完整对比表(多方法 benchmark)**把所有行都从 transcript 填齐**, 不留 "—"
 ```
-
-如果是关键 benchmark 截图, **图旁边也用 markdown 表格复刻数值**, 因为字幕没有完整表内容时就靠这张, 字小可能不可读, 表是兜底.
-```
-```
-
-## 调用之前主线程要做的准备
-
-- 字幕已清洗(`scripts/clean_vtt.py` 输出 `transcript.txt`)
-- 关键帧已抽并去重(`scripts/extract_keyframes.py` 输出 `figures_full/renamed/`)
-- 章节锚点已用 grep 找出来(主线程的 grep 字幕找方法/章节)
-- 视频元信息一句话总结(主讲、频道、主题)
-
-## Reviewer Pass (主线程做, 便宜)
-
-writer 输出后, **不要**再起一个 reviewer 子 Agent — 太贵且重复。主线程直接做:
-
-1. 用 writer 标注的"把握不大"项, 在 transcript.txt 用 grep 反查
-2. 抽 5-10 个**具体技术点**(数字 / 易错 API 名)做对照
-3. 主线程发现遗漏就 Edit 修正, 一般 2-5 处
-
-## 成本预算
-
-| 项 | 单次 |
-|---|---|
-| Writer subagent (Sonnet 4.6) | ~110-150K |
-| 主线程 grep + Edit (Opus) | ~15K |
-| 总计 | 约 200K, 折算 ~30K Opus 等价 |
-
-对比: 直接用 Opus 写, ~150K Opus, **5 倍成本**。
