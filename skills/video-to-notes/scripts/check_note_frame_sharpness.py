@@ -24,6 +24,7 @@ Output tiers:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -44,7 +45,8 @@ TS_RE = re.compile(r"slide_(\d{2})-(\d{2})-(\d{2})\.jpg")
 def _lap_variance(path: Path) -> float:
     """Full-image Laplacian variance — direct sharpness metric."""
     import cv2
-    img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    import numpy as np
+    img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
     if img is None:
         return -1.0
     return float(cv2.Laplacian(img, cv2.CV_64F).var())
@@ -98,13 +100,23 @@ def main() -> int:
     ap.add_argument("--anchor-min-edge", type=float, default=0.015,
                     help="ignore anchors below this edge density (title slides etc)")
     args = ap.parse_args()
+    if args.step <= 0 or args.window < 0:
+        ap.error("step must be positive; window must be nonnegative")
 
     notes = Path(args.notes_md)
     if not notes.exists():
         print(f"error: {notes} not found", file=sys.stderr)
         return 1
 
+    image_paths = {}
+    for target in re.findall(r"!\[[^\]]*\]\(([^\n]+)\)", notes.read_text(encoding="utf-8")):
+        image_path = (notes.parent / target.strip().strip("<>")).resolve()
+        image_paths[image_path.name] = image_path
     frames = collect_timestamps(notes)
+    manifest = notes.parent / "figures_full" / "frames.json"
+    precise = {}
+    if manifest.exists():
+        precise = {Path(r["path"]).name: r["timestamp"] for r in json.loads(manifest.read_text(encoding="utf-8"))}
     if not frames:
         print(f"no slide_HH-MM-SS.jpg references in {notes}", file=sys.stderr)
         return 0
@@ -120,11 +132,18 @@ def main() -> int:
         rows: list[tuple[str, str, float, float, float, float, float, float]] = []
         skipped = 0
         for secs, ts_str in frames:
-            probes = probe_range(args.video, float(secs), args.window, args.step, tmp)
-            anchor = next((p for p in probes if abs(p[0] - secs) < 1e-6), None)
+            timestamp = precise.get("slide_" + ts_str.replace(":", "-") + ".jpg", float(secs))
+            probes = probe_range(args.video, timestamp, args.window, args.step, tmp)
+            anchor = next((p for p in probes if abs(p[0] - timestamp) < 1e-6), None)
             if anchor is None:
-                continue
+                raise RuntimeError(f"Cannot extract anchor {ts_str}")
             a_ts, a_edge, a_lap = anchor
+            source = image_paths.get("slide_" + ts_str.replace(":", "-") + ".jpg")
+            if source is None or not source.is_file():
+                raise RuntimeError(f"Referenced image missing: {ts_str}")
+            a_edge, a_lap = _edge_density_of(source), _lap_variance(source)
+            if a_edge < 0 or a_lap < 0:
+                raise RuntimeError(f"Cannot read image: {source}")
             if a_edge < args.anchor_min_edge:
                 skipped += 1
                 continue

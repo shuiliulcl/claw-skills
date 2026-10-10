@@ -223,7 +223,7 @@ KEEP_THRESHOLDS = {
 
 
 def score_frame(path: Path) -> dict:
-    bgr = cv2.imread(str(path))
+    bgr = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
     if bgr is None:
         return {"name": path.name, "error": "cannot read"}
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
@@ -325,7 +325,7 @@ def main() -> int:
         )
 
     if args.json:
-        Path(args.json).write_text(json.dumps(records, indent=2, ensure_ascii=False))
+        Path(args.json).write_text(json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"\nfull JSON written to {args.json}", file=sys.stderr)
 
     return 0

@@ -8,6 +8,7 @@ emit one line per actual speech segment with a leading [hh:mm:ss] timestamp.
 Usage:
     python clean_vtt.py <input.vtt> <output.txt>
 """
+import html
 import re
 import sys
 from pathlib import Path
@@ -46,7 +47,7 @@ def main() -> None:
         text = WORD_TS_RE.sub("", line)
         text = TAG_RE.sub("", text)
         text = ALIGN_RE.sub("", text)
-        text = text.strip()
+        text = html.unescape(text).strip()
         if not text:
             continue
         if text == last_text:

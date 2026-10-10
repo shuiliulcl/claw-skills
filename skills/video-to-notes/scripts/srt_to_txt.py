@@ -45,11 +45,12 @@ def main() -> None:
             flush()
             cur_ts = f"{m.group(1)}:{m.group(2)}:{m.group(3)}"
             continue
-        if line.strip().isdigit():
+        if cur_ts is None and line.strip().isdigit():
             # SRT cue index, skip
             continue
         if not line.strip():
             flush()
+            cur_ts = None
             continue
         cur_text.append(line)
     flush()

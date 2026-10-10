@@ -4,7 +4,10 @@
 
 param(
     [string]$ConfigFile = "$PSScriptRoot\..\p4-watch-config.json",
-    [int]$HoursBack = 0
+    [int]$HoursBack = 0,
+    [switch]$SkipDiff,
+    [ValidateRange(1, 20)][int]$FallbackRecentLimit = 10,
+    [ValidateRange(1, 20)][int]$FallbackMaxLimit = 20
 )
 
 chcp 65001 | Out-Null
@@ -33,6 +36,15 @@ $nameMap = @{
     "summer"       = "Summer"
     "yukunlong"    = "阿龙"
     "jingyuan002"  = "景元"
+    "changzhi"     = "长志"
+    "zhaoyang003"  = "兆阳"
+    "ydidal"       = "程仔"
+    "maomilaoshi"  = "猫咪老师"
+    "xiaozhuwa"    = "晓烛瓦"
+    "muyi002"      = "木一"
+    "muyu003"      = "沐雨"
+    "xudongliang"  = "榴莲"
+    "shuiliu"      = "半墙"
 }
 function Get-DisplayName($user) {
     if ($nameMap.ContainsKey($user)) { return $nameMap[$user] } else { return $user }
@@ -49,12 +61,18 @@ if ($members.Count -eq 0) {
 }
 
 $since = (Get-Date).AddHours(-$hoursBack).ToString("yyyy/MM/dd:HH:mm:ss")
+$sinceAt = (Get-Date).AddHours(-$hoursBack)
+
+if ($FallbackMaxLimit -lt $FallbackRecentLimit) {
+    throw "FallbackMaxLimit must be greater than or equal to FallbackRecentLimit"
+}
 
 # ---------- 逐人逐仓库拉取 ----------
 $teamReport = @{}
 
 foreach ($member in $members) {
     $allCommits = @()
+    $knownCls = [System.Collections.Generic.HashSet[string]]::new()
 
     foreach ($repo in $repos) {
         $stream = $repo.stream
@@ -69,6 +87,7 @@ foreach ($member in $members) {
             $clNum  = $Matches[1]
             $clDate = $Matches[2]
             $clTime = $Matches[3]
+            [void]$knownCls.Add([string]$clNum)
 
             $descLines = @(p4 describe -s $clNum 2>&1)
             $fullDesc = ($descLines | Select-Object -Skip 1 | Where-Object { $_ -match "^\t" } |
@@ -95,7 +114,7 @@ foreach ($member in $members) {
 
             $diffTmpFile = ""
             $codeFiles = @($files | Where-Object { $_.Path -match "\.(cpp|h|inl|lua)$" })
-            if ($codeFiles.Count -gt 0) {
+            if (-not $SkipDiff -and $codeFiles.Count -gt 0) {
                 $rawDiff = @(p4 describe -du $clNum 2>&1)
                 $diffStart = ($rawDiff | Select-String -Pattern "^Differences" | Select-Object -First 1).LineNumber
                 # 动态行数上限：基础 500 行，每多一个代码文件加 150 行，上限 3000
@@ -138,6 +157,44 @@ foreach ($member in $members) {
                 DiffTmpFile = $diffTmpFile
             }
         }
+    }
+
+    # 保底：仓库路径变更时，只按固定成员索引最近 10 条；第 10 条仍在本周才升级到 20 条。
+    # 使用 p4 changes -l 直接带回描述，不对每条补做 describe，避免常规周报出现大量数据库往返。
+    $fallbackRaw = @(p4 changes -s submitted -t -l -u $member -m $FallbackRecentLimit 2>&1)
+    $fallbackChanges = @($fallbackRaw | Where-Object { $_ -match "^Change" })
+    if ($fallbackChanges.Count -ge $FallbackRecentLimit -and $fallbackChanges[-1] -match "^Change \d+ on (\d{4}/\d{2}/\d{2}) (\d{2}:\d{2}:\d{2}) by") {
+        $oldestAt = [datetime]::ParseExact("$($Matches[1]) $($Matches[2])", "yyyy/MM/dd HH:mm:ss", $null)
+        if ($oldestAt -ge $sinceAt -and $FallbackMaxLimit -gt $FallbackRecentLimit) {
+            $fallbackRaw = @(p4 changes -s submitted -t -l -u $member -m $FallbackMaxLimit 2>&1)
+        }
+    }
+
+    $fallbackRecords = @()
+    $current = $null
+    foreach ($rawLine in $fallbackRaw) {
+        if ($rawLine -match "^Change (\d+) on (\d{4}/\d{2}/\d{2}) (\d{2}:\d{2}:\d{2}) by") {
+            if ($null -ne $current) { $fallbackRecords += $current }
+            $current = [PSCustomObject]@{ CL=$Matches[1]; Date=$Matches[2]; Time=$Matches[3]; Description=@() }
+        } elseif ($null -ne $current -and $rawLine -match "^\t") {
+            $current.Description += $rawLine.TrimStart("`t")
+        }
+    }
+    if ($null -ne $current) { $fallbackRecords += $current }
+
+    foreach ($record in $fallbackRecords) {
+        $changeAt = [datetime]::ParseExact("$($record.Date) $($record.Time)", "yyyy/MM/dd HH:mm:ss", $null)
+        $fullDesc = ($record.Description | Select-Object -First 5) -join " | "
+        # 固定成员提交即为候选事实；不同项目的归类由后续候选稿人工确认，不能按标签过滤而漏掉 [Script][2.9] 等格式。
+        if ($changeAt -lt $sinceAt -or $knownCls.Contains([string]$record.CL)) { continue }
+        $tags = [regex]::Matches($fullDesc, '\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value }
+        $tagStr = if ($tags.Count -gt 0) { $tags -join ", " } else { "none" }
+        $allCommits += [PSCustomObject]@{
+            Repo = "自动发现"; CL = $record.CL; DateTime = "$($record.Date) $($record.Time)"; FullDesc = $fullDesc
+            Tags = $tagStr; FileCount = 0; CPP = 0; BP = 0; Lua = 0; Other = 0
+            Files = @(); DiffTmpFile = ""
+        }
+        [void]$knownCls.Add([string]$record.CL)
     }
 
     $teamReport[$member] = $allCommits
@@ -198,6 +255,45 @@ if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out
 $logFile = Join-Path $logDir "$((Get-Date).ToString('yyyy-MM-dd'))-weekly.txt"
 $report | Out-File -FilePath $logFile -Encoding utf8
 Write-Host "Report saved: $logFile"
+
+# 保存结构化事实台账：后续写作只能按该成员名下的 CL 归纳，禁止跨成员引用。
+$ledgerMembers = foreach ($member in $members) {
+    $displayName = Get-DisplayName $member
+    $ledgerCommits = foreach ($commit in @($teamReport[$member])) {
+        [PSCustomObject]@{
+            cl          = [string]$commit.CL
+            repo        = [string]$commit.Repo
+            timestamp   = [string]$commit.DateTime
+            description = [string]$commit.FullDesc
+            tags        = [string]$commit.Tags
+            files       = @($commit.Files | ForEach-Object {
+                [PSCustomObject]@{
+                    path   = [string]$_.Path
+                    rev    = [string]$_.Rev
+                    action = [string]$_.Action
+                }
+            })
+        }
+    }
+
+    [PSCustomObject]@{
+        p4_user      = [string]$member
+        display_name = [string]$displayName
+        commits      = @($ledgerCommits)
+    }
+}
+
+$ledger = [PSCustomObject]@{
+    schema_version = 1
+    generated_at   = (Get-Date).ToString("o")
+    window_hours   = $hoursBack
+    window_start   = (Get-Date).AddHours(-$hoursBack).ToString("o")
+    window_end     = (Get-Date).ToString("o")
+    members        = @($ledgerMembers)
+}
+$ledgerFile = Join-Path $logDir "$((Get-Date).ToString('yyyy-MM-dd'))-weekly-ledger.json"
+$ledger | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath $ledgerFile -Encoding utf8
+Write-Host "Ledger saved: $ledgerFile"
 
 # 输出所有 diff 路径供 AI 读取（逗号分隔）
 $allDiffPaths = @()

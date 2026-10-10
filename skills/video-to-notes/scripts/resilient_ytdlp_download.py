@@ -80,11 +80,17 @@ def main() -> None:
     args = ap.parse_args()
 
     out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    partial = out.with_name(out.name + ".part")
     min_bytes = args.min_size * 1024 * 1024
 
     for attempt in range(1, args.attempts + 1):
         print(f"[attempt {attempt}/{args.attempts}] resolving URL...")
-        url = resolve_url(args.youtube_url, args.format)
+        try:
+            url = resolve_url(args.youtube_url, args.format)
+        except subprocess.TimeoutExpired:
+            print("  URL resolution timed out; retry")
+            continue
         if not url:
             print("  no url returned by yt-dlp"); time.sleep(5); continue
         host = host_of(url)
@@ -92,18 +98,31 @@ def main() -> None:
         if host in BAD_HOSTS:
             print("  BAD host, retrying..."); time.sleep(3); continue
         print(f"  curling -> {out}...")
-        subprocess.run(
-            ["curl", "-sSL", "--connect-timeout", "20", "--max-time", "1200",
-             "-o", str(out), url],
+        result = subprocess.run(
+            ["curl", "--fail", "-sSL", "--connect-timeout", "20", "--max-time", "1200",
+             "-o", str(partial), url],
             timeout=1500,
         )
-        size = out.stat().st_size if out.exists() else 0
-        if size > min_bytes:
+        size = partial.stat().st_size if partial.exists() else 0
+        valid = False
+        if result.returncode == 0 and size > min_bytes:
+            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=codec_type:format=duration", "-of", "json", str(partial)],
+                capture_output=True, text=True)
+            import json
+            try:
+                info = json.loads(probe.stdout)
+                valid = (probe.returncode == 0 and bool(info.get("streams"))
+                         and float(info.get("format", {}).get("duration", 0)) > 0)
+            except (ValueError, TypeError):
+                pass
+        if valid:
+            partial.replace(out)
             print(f"[ok] {size // (1024*1024)} MB")
             return
         print(f"  failed (file {size} B); retry")
-        if out.exists() and size < 1024:
-            out.unlink()
+        if partial.exists():
+            partial.unlink()
 
     print("[fail] all attempts exhausted", file=sys.stderr)
     sys.exit(1)

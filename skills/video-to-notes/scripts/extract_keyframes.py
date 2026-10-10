@@ -16,6 +16,7 @@ Output:
     <output_dir>/renamed/slide_HH-MM-SS.jpg — deduped, sharpness-refined frames
 """
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -32,7 +33,8 @@ def fmt_ts(seconds: float) -> str:
 def _edge_density_of(path: Path) -> float:
     """Return Canny edge density; higher = sharper / less motion blur."""
     import cv2
-    img = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    import numpy as np
+    img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
     if img is None:
         return -1.0
     edges = cv2.Canny(img, 80, 160)
@@ -101,31 +103,27 @@ def main() -> None:
     ap.add_argument("--refine-window", type=float, default=3.0, help="Pass 3 probe ±window seconds (default 3.0)")
     ap.add_argument("--refine-step", type=float, default=1.0, help="Pass 3 probe step seconds (default 1.0)")
     args = ap.parse_args()
+    if args.refine_step <= 0 or args.refine_window < 0 or args.dedup < 0:
+        ap.error("step must be positive; window and dedup must be nonnegative")
 
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    raw_dir = out
+    raw_dir = Path(tempfile.mkdtemp(prefix="scene_", dir=out))
     renamed_dir = out / "renamed"
-    # Cleanup old products: if a previous run produced different dedup keep set
-    # (e.g. video resolution changed → scene threshold hits different frames),
-    # leftover slide_*.jpg from prior run will silently mix into new output.
-    # Wipe renamed/ before re-extracting.
-    if renamed_dir.exists():
-        for f in renamed_dir.glob("slide_*.jpg"):
-            f.unlink()
-        print(f"  cleaned old slide_*.jpg in {renamed_dir}", file=sys.stderr)
     renamed_dir.mkdir(exist_ok=True)
     timestamps_file = out / "timestamps.txt"
 
     # Pass 1: detect scene changes, output raw scene_NNNN.jpg + collect pts_time
     print(f"Pass 1: scene detection (threshold={args.threshold}) on {args.input}", file=sys.stderr)
     cmd = [
-        "ffmpeg", "-hide_banner", "-i", args.input,
+        "ffmpeg", "-hide_banner", "-y", "-i", args.input,
         "-vf", f"select='gt(scene,{args.threshold})',showinfo",
         "-vsync", "vfr", "-q:v", "2",
         str(raw_dir / "scene_%04d.jpg"),
     ]
     proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode:
+        raise RuntimeError(f"scene detection failed: {proc.stderr[-2000:]}")
     # showinfo lines on stderr: "Parsed_showinfo_1 ... pts_time:570.5 ..."
     pts_re = re.compile(r"pts_time:([0-9.]+)")
     timestamps = [float(m) for m in pts_re.findall(proc.stderr)]
@@ -164,14 +162,32 @@ def main() -> None:
         except ImportError:
             print("  cv2 not installed — skipping Pass 3 (pip install opencv-python<5 to enable)", file=sys.stderr)
 
+    records = []
+    labels = set()
     for t in kept:
         ts_label = fmt_ts(t)
-        dst = renamed_dir / f"slide_{ts_label}.jpg"
-        _extract_one(args.input, t, dst)
+        name = f"slide_{ts_label}.jpg"
+        if name in labels:
+            raise RuntimeError(f"Refined timestamps collide: {name}; retry with --no-refine")
+        labels.add(name)
+        dst = raw_dir / name
+        if not _extract_one(args.input, t, dst):
+            raise RuntimeError(f"frame extraction failed at {t}")
+        records.append({"path": str((renamed_dir / name).resolve()), "timestamp": t})
+
+    if not records:
+        raise RuntimeError("No scene frames found; use transcript-directed extraction")
+    for old in renamed_dir.glob("slide_*.jpg"):
+        old.unlink()
+    for record in records:
+        dst = Path(record["path"])
+        (raw_dir / dst.name).replace(dst)
+    (out / "frames.json").write_text(json.dumps(records, indent=2), encoding="utf-8")
 
     # Cleanup raw scene_NNNN.jpg (we have renamed copies)
     for f in raw_dir.glob("scene_*.jpg"):
         f.unlink()
+    raw_dir.rmdir()
 
     print(f"  kept {len(kept)} of {len(timestamps)}", file=sys.stderr)
     print(f"  output: {renamed_dir}", file=sys.stderr)

@@ -458,6 +458,17 @@ python C:/Users/banqiang/.claude/skills/video-to-notes/scripts/check_note_frame_
 
 ## Phase 6 · (可选) 发布到飞书 wiki
 
+### 默认发布位置
+
+用户已指定默认发布到 [技术分享资料](https://papergames.feishu.cn/wiki/GecqwUpXyiYRRwkyAvBccsGUnKf) 的子节点下。
+
+- 父节点 URL：`https://papergames.feishu.cn/wiki/GecqwUpXyiYRRwkyAvBccsGUnKf`
+- `target_parent_token`：`GecqwUpXyiYRRwkyAvBccsGUnKf`
+- `target_space_id`：`7560990220088377346`
+
+用户要求发布且未另指定位置时，直接使用此父节点，不必再次询问目标链接；发布前用 `drive +inspect` 确认节点仍可访问。用户本次明确指定其他位置时，以本次指令为准。仅生成本地笔记时不自动发布。
+
+
 > 完整流程 + 坑见 [references/feishu-publish.md](references/feishu-publish.md), 这里只列正确路径。
 
 **双输出设计**: writer 出的 `notes_full.md` 是 **Obsidian 原稿**(带 frontmatter + `[[wikilinks]]`, 个人积累用)。发飞书前用 `to_feishu.py` 转换:
@@ -499,13 +510,13 @@ lark-cli drive +inspect --url '<wiki-url>' --as user
 # 拿到 obj_token + space_id + parent_node_token
 
 # 2. 导入 markdown 为 docx (会创建 13 个"无法导入该图片"占位 — 没关系, 别管它们)
-lark-cli drive +import --file ./notes_full.md --type docx \
+lark-cli drive +import --file ./notes_for_feishu.md --type docx \
   --name "<原视频英文标题>" --as user
 # 拿到新 docx token
 
 # 3. overwrite 一遍清掉占位图(关键步骤,绕过占位图陷阱)
 lark-cli docs +update --doc <docx-token> --command overwrite \
-  --doc-format markdown --content @./notes_full.md --as user
+  --doc-format markdown --content @./notes_for_feishu.md --as user
 
 # 4. 用 media-insert 插真实图(每张 720x405, 16:9, 通过 caption 文本定位)
 bash scripts/insert_images_feishu.sh <docx-token>
@@ -602,3 +613,17 @@ lark-cli docs +update --doc <docx-token> --command block_delete \
 - 中文视频(用户讲中文): 字幕和写作流程类似但术语策略不同, 本 skill 默认英→中
 - 短视频 / vlog: 内容密度低, 直接看就行
 - 实时直播流: 字幕和片源都还在录, 要等结束
+
+## 可靠性更新（0.2.0）
+
+- 下载先写 `.part`，仅 curl 成功且 ffprobe 检测到视频流和有效时长后替换目标文件；这不等同于全片解码验证。
+- 抽帧失败返回错误；成功后输出 `figures_full/frames.json`，保存图片路径与精确浮点时间戳，锐度复查优先读取此记录。请将该文件与图片一同保留。
+- 飞书插图无需编辑脚本。使用 `python scripts/insert_images_feishu.py <docx-token> notes_for_feishu.md --dry-run` 预检，再去掉 `--dry-run` 执行。支持独占一行的标准 Markdown 图片及紧随的斜体 caption（含唯一的“来源 HH:MM:SS”）。
+- 插图记录按文档保存到笔记旁的 `feishu-images-*.json`。同一笔记与文档顺序重跑跳过已确认项；不要并发发布同一文档。请求中断或结果不明时保留 pending 并停止，先核对远端是否已插入，再将对应项标记 done 或在确认未插入后删除该项。覆盖/重建文档后须使用新记录文件，旧记录不能代表远端现状。
+- `motion_density.py --tmp` 指定临时文件的父目录，只清理本次创建的子目录。
+
+### 实测排错补充（2026-09-16）
+
+视频 `CfhHFFvcRow` 实测：yt-dlp `2026.06.11.235628` 的 format 299 持续 403，`mediaconnect` 提示 unsupported；隔离安装 `2026.8.19` 后用默认 client 开始正常下载。因此遇到持续 403，先记录 `yt-dlp --version`，尝试在独立环境升级并使用默认 client，再诊断 CDN/token，不能仅凭 403 断言缺少 PO Token。本文历史 client 名称不保证当前版本可用。
+
+字幕清洗现在会解码 `&gt;`、`&amp;` 等 HTML 实体。可运行 `python -B -m unittest discover -s tests -v` 验证回归用例。

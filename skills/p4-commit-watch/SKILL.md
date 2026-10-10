@@ -48,7 +48,7 @@ p4-commit-watch/
 
 **第一步：运行脚本**
 ```
-pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\skills\p4-commit-watch\scripts\p4-team-daily.ps1 -HoursBack 24
+pwsh -NonInteractive -ExecutionPolicy Bypass -File D:\AITool\p4-commit-watch\scripts\p4-team-daily.ps1 -HoursBack 24
 ```
 
 **第二步：收集所有 DIFF_FILE 路径**
@@ -86,7 +86,7 @@ Markdown 结构：
 
 **第一步：运行脚本**
 ```
-pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\skills\p4-commit-watch\scripts\p4-self-watch.ps1 -HoursBack 12
+pwsh -NonInteractive -ExecutionPolicy Bypass -File D:\AITool\p4-commit-watch\scripts\p4-self-watch.ps1 -HoursBack 12
 ```
 
 **第二步 ~ 第四步**：同组员日报（收集 DIFF_FILE → 逐个读取 → 生成报告）
@@ -135,7 +135,7 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 #### ✅ 含 Lua 文件（Lua > 0）→ 专项 Code Review（必做，不得省略）
 
 **执行 Code Review 之前，必须先读取项目约定文档：**
-`C:\Users\banqiang\.openclaw\skills\p4-commit-watch\references\lua-review-conventions.md`
+`D:\AITool\p4-commit-watch\references\lua-review-conventions.md`
 按照其中的约定校正判断，避免将已知等效写法或项目惯例误判为问题。
 
 ```
@@ -225,7 +225,7 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 
 **第一步：运行脚本**
 ```
-pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\skills\p4-commit-watch\scripts\p4-weekly.ps1 -HoursBack 168
+pwsh -NonInteractive -ExecutionPolicy Bypass -File D:\AITool\p4-commit-watch\scripts\p4-weekly.ps1 -HoursBack 168
 ```
 
 **第二步：收集所有 DIFF_FILE 路径**
@@ -235,6 +235,20 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 **第三步：逐个读取 diff 文件（强制，不得跳过）**
 
 对列表中每一个路径，必须调用 `read` 工具读取内容。
+
+### 人员归属硬校验（必须在写飞书前完成）
+
+脚本同时生成 `reports/YYYY-MM-DD-weekly-ledger.json`。它是本周报告唯一的人员归属事实源：每条记录固定包含 `p4_user`、`display_name`、CL、描述和文件。
+
+1. 先按台账逐成员生成候选稿 JSON（结构见 `D:\AITool\p4-commit-watch\references\weekly-draft-schema.example.json`）；每个 bullet 必须带 `source_cls`，且只能引用当前成员名下的 CL。
+2. 禁止先把全员提交合并后再按印象回填成员；禁止用另一成员的描述、文件或 diff 补全当前成员的内容。
+3. 创建或更新飞书文档前，必须运行：
+
+```powershell
+python D:\AITool\p4-commit-watch\scripts\validate-weekly-attribution.py --ledger <weekly-ledger.json> --draft <weekly-draft.json>
+```
+
+4. 校验失败时不得创建或覆盖飞书周报；先修正候选稿的成员或来源 CL。
 
 **第四步：生成周维度摘要**
 
@@ -259,13 +273,13 @@ pwsh -NonInteractive -ExecutionPolicy Bypass -File C:\Users\banqiang\.openclaw\s
 
 使用飞书 MCP 搜索上周的周报文档（标题格式 `2.8版本周报-程序`）：
 ```
-mcp__pape-lark-mcp__search_docs(query="2.8版本周报-程序")
+mcp__paper_lark_mcp__search_docs(query="2.8版本周报-程序")
 ```
 从结果中取 `edit_time` 最新的一条（即上周那份）。
 
 再用 MCP 读取该文档内容：
 ```
-mcp__pape-lark-mcp__get_doc_content(doc_id=<token>)
+mcp__paper_lark_mcp__get_doc_content(document_id=<token>)
 ```
 定位第 2 节表格「本周完成的工作内容」列，逐成员提取文本内容，存为「上周数据」。若找不到上周文档，「上周」列全部留空。
 
@@ -284,7 +298,7 @@ mcp__pape-lark-mcp__get_doc_content(doc_id=<token>)
 **Part 2：组级汇报段落**（紧接 Part 1 之后）
 - 一段连贯文字，不出现人名、不出现分类标题
 - 排序：新功能/玩法 → 系统/状态 → Bug修复 → 技术底层
-- 整段不超过 5 句，同类跨人内容用分号衔接
+- 整段不超过 5 句；仅当同一业务事项由多人共同推进、且每个事实均能回查时，才可跨人合并并用分号衔接
 
 **第七步：输出最终报告**（唯一对外输出）
 
@@ -323,7 +337,7 @@ mcp__pape-lark-mcp__get_doc_content(doc_id=<token>)
 Part 2 生成规则：
 - **分行输出**，每行一句，对应一类工作（用 `<ul><li>` 列表）
 - 排序：新功能/玩法 → 系统/状态 → Bug修复 → 技术底层
-- 同类工作跨人合并，控制在 4～5 行以内
+- 不同负责人或不同业务的事项必须拆行；不得为了控制行数跨人、跨业务合并。仅同一业务事项可在可回查前提下合并，整体控制在 4～5 行以内
 - **不出现人名，不出现技术细节**（如具体 API 名称、架构改法），只写功能层面的结论
 - **不加分类前缀**（不写"新玩法交付："这种小标题，直接写内容）
 - **不要**"本周在玩法侧"式的段落开头，直接从内容起
@@ -347,28 +361,43 @@ Part 2 生成规则：
 
 ---
 
+## 周报写作自我迭代闭环（每次必须执行）
+
+先读取 `references/weekly-writing-profile.md`，再按以下闭环执行：
+
+1. **采集事实**：运行周报脚本生成 `weekly-ledger.json`；只以台账为事实来源。
+2. **身份校验**：检查成员名单和 P4→展示名映射；发现未映射账号即停止写作并补齐映射。
+3. **逐人归纳**：每个成员的每条候选 bullet 必须附 `source_cls`，运行 `validate-weekly-attribution.py`；不通过不得写入飞书。
+4. **版本归类**：从 CL 描述、分支、标签中提取版本线；证据不足时归为“待确认”，不得猜测版本。
+5. **生成候选稿**：新建候选文档，不覆盖人工手改稿；前半放精简来源核对表，正文按写作画像输出版本线短事项。
+6. **吸收反馈**：读取人工直接改动与未解决评论，逐条判断是事实修正、结构偏好还是措辞偏好。
+7. **规则晋升**：可复用反馈写入 `weekly-writing-profile.md`；涉及归属、来源、合并边界的反馈同时写入本 Skill 的硬规则。
+8. **回归检查**：用新规则检查本次候选稿，确认没有跨人/跨业务合并、无来源事项或 P4 用户名漏显；仅修改候选稿，不覆盖人工稿。
+
+候选稿输出时附带“本次吸收的规则”和“待人工确认事项”。同一条反馈连续两周仍出现时，必须将其提升为明确的生成前检查项。
+
 ## Cron 触发 Prompt（极简）
 
 cron 只做触发，执行逻辑全在本 SKILL.md 中。
 
 **组员日报（每天 22:00）：**
 ```
-读取并严格执行 C:\Users\banqiang\.openclaw\skills\p4-commit-watch\SKILL.md 中「模式一：组员日报」的完整流程。
+读取并严格执行 D:\AITool\p4-commit-watch\SKILL.md 中「模式一：组员日报」的完整流程。
 ```
 
 **个人巡查 AM（每天 09:00）：**
 ```
-读取并严格执行 C:\Users\banqiang\.openclaw\skills\p4-commit-watch\SKILL.md 中「模式二：个人巡查」的完整流程。
+读取并严格执行 D:\AITool\p4-commit-watch\SKILL.md 中「模式二：个人巡查」的完整流程。
 ```
 
 **个人巡查 PM（每天 21:00）：**
 ```
-读取并严格执行 C:\Users\banqiang\.openclaw\skills\p4-commit-watch\SKILL.md 中「模式二：个人巡查」的完整流程。
+读取并严格执行 D:\AITool\p4-commit-watch\SKILL.md 中「模式二：个人巡查」的完整流程。
 ```
 
 **组员周报（每周日 22:00）：**
 ```
-读取并严格执行 C:\Users\banqiang\.openclaw\skills\p4-commit-watch\SKILL.md 中「模式三：组员周报」的完整流程。
+读取并严格执行 D:\AITool\p4-commit-watch\SKILL.md 中「模式三：组员周报」的完整流程。
 ```
 
 ---

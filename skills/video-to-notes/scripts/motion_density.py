@@ -27,6 +27,7 @@ Rule of thumb (tuned against Mass Entity dataset):
 from __future__ import annotations
 
 import argparse
+import tempfile
 import json
 import subprocess
 import sys
@@ -132,9 +133,13 @@ def main() -> int:
     ap.add_argument("--keep-tmp", action="store_true",
                     help="don't delete sampled frames after")
     args = ap.parse_args()
+    if args.window <= 0 or args.top <= 0:
+        ap.error("window and top must be positive")
 
     video = str(Path(args.video).resolve())
-    tmp = Path(args.tmp) if args.tmp else Path(video).parent / ".motion_tmp"
+    parent = Path(args.tmp) if args.tmp else Path(video).parent
+    parent.mkdir(parents=True, exist_ok=True)
+    tmp = Path(tempfile.mkdtemp(prefix="motion_", dir=parent))
 
     print(f"probing duration of {Path(video).name}...", file=sys.stderr)
     duration = probe_duration(video)
@@ -169,7 +174,7 @@ def main() -> int:
 
     if args.json:
         Path(args.json).write_text(
-            json.dumps(top, indent=2, ensure_ascii=False)
+            json.dumps(top, indent=2, ensure_ascii=False), encoding="utf-8"
         )
         print(f"\nfull JSON written to {args.json}", file=sys.stderr)
 
